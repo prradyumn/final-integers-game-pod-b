@@ -1,0 +1,576 @@
+/* ==========================================================================
+   Integers — The Village Water Tank · Pod B
+   Layout transcribed 1:1 from Figma "Integers" › page Final › Slide 16:9
+   (file ZHTaSMVM72cmbAmEQvU55w, node 94:1405). Stage is 1920×1080 and every
+   element below uses that frame's coordinates.
+
+     tank art      199,10   723×1084  (empty-tank art refitted so its glass
+                                       interior lands on 351.6..765.9 × 122.9..953.5)
+     inlet pipe    110,-163 352×264
+     outlet pipe   737,824  224×168
+     ticks         x360 · +5 at y183 · 72.7 apart · 65 long (0 is 85, yellow)
+     labels        x441 · 52×55 · centred on each tick
+     marker        x318 · 88×79 · centred on the current tick
+     bubble        1222,101 585×258
+     equation      884,443  755×200 · term boxes x935 / x1188 / x1431, y465 160×156
+     check button  1136,667 260×109
+     character     foot at (1787,945), 600 tall
+   ========================================================================== */
+
+:root{
+  --ink:#08143f;
+  --font: "Baloo 2", "Arial Rounded MT Bold", "Avenir Next Rounded",
+          ui-rounded, "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+*{ box-sizing:border-box; }
+
+html,body{
+  margin:0; padding:0; width:100%; height:100%;
+  position:fixed; inset:0; overflow:hidden;
+  background:#06121f; font-family:var(--font);
+  touch-action:none; overscroll-behavior:none;
+  -webkit-text-size-adjust:100%; text-size-adjust:100%;
+  -webkit-user-select:none; user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+#app{ position:fixed; inset:0; display:grid; place-items:center; overflow:hidden; }
+
+#stage{
+  position:absolute; left:50%; top:50%;
+  width:1920px; height:1080px;
+  transform-origin:50% 50%;
+  transform:translate(-50%,-50%) scale(1);
+  overflow:hidden; background:#0b2b45;
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+}
+
+/* ── backdrop ─────────────────────────────────────────────────────────── */
+#bg{ position:absolute; inset:0; width:1920px; height:1080px; object-fit:cover; }
+
+/* ── the river ────────────────────────────────────────────────────────────
+   What makes a surface read as WATER rather than as smoke is not softness, it
+   is (a) the surface itself distorting and (b) highlights with hard edges.
+   Soft blurred blobs drifting past are, unavoidably, smoke.
+
+   So the base layer here is the painted water itself, sliced into 15 thin
+   horizontal bands, each shifted sideways on a sine that is phase-delayed down
+   the stack. The result is a refraction wave travelling downstream through the
+   original artwork — the art moves, not a veil over it. Everything above it is
+   hard-edged: narrow caustic filaments and specular sparkles that twinkle on
+   and off rather than drifting.
+
+   All of it is transform/opacity only, inside a 1100×120 box. No blend mode
+   (a full-stage backdrop readback cost 20 fps), no live filter.            */
+#river{
+  position:absolute; left:820px; top:960px; width:1100px; height:120px;
+  pointer-events:none; overflow:hidden;
+  -webkit-clip-path:polygon(150px 120px, 172px 62px, 204px 44px, 268px 48px, 332px 50px, 396px 55px, 460px 54px, 524px 52px, 588px 52px, 652px 54px, 716px 56px, 780px 57px, 844px 58px, 908px 57px, 972px 57px, 1036px 72px, 1100px 74px, 1100px 120px);
+          clip-path:polygon(150px 120px, 172px 62px, 204px 44px, 268px 48px, 332px 50px, 396px 55px, 460px 54px, 524px 52px, 588px 52px, 652px 54px, 716px 56px, 780px 57px, 844px 58px, 908px 57px, 972px 57px, 1036px 72px, 1100px 74px, 1100px 120px);
+  -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0, #000 22%);
+          mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0, #000 22%);
+}
+#riverFx{ position:absolute; inset:0; }
+#fxDefs{ position:absolute; width:0; height:0; overflow:hidden; }
+
+/* ── 1. the surface refracts ──────────────────────────────────────────── */
+#ripple{ position:absolute; inset:0; }
+#ripple u{
+  position:absolute; left:-14px; width:1128px; height:9px; display:block;
+  background:url("assets/img/scene-background.png") no-repeat;
+  background-size:1920px 1080px;
+  will-change:transform; backface-visibility:hidden;
+  animation-name:refract; animation-timing-function:linear;
+  animation-iteration-count:infinite;
+}
+/* an orbit, not a shear: the band slides AND rises, which is what a swell
+   does. Amplitude and speed both scale with depth, so near water moves
+   faster and harder than far water — that gradient is most of the sense of
+   perspective. */
+@keyframes refract{
+  0%,100%{ transform:translate3d(calc(var(--a) * -1),0,0) }
+  25%    { transform:translate3d(0,var(--b),0) }
+  50%    { transform:translate3d(var(--a),0,0) }
+  75%    { transform:translate3d(0,calc(var(--b) * -1),0) }
+}
+
+/* ── 2. specular sparkles: thin, bright, hard, and they twinkle ───────── */
+#sparks{ position:absolute; inset:0; }
+#sparks s{
+  position:absolute; display:block; height:4px; border-radius:2px;
+  background:linear-gradient(90deg,
+             rgba(255,255,255,0) 0,
+             rgba(255,255,255,.95) 34%,
+             rgba(255,255,255,1) 50%,
+             rgba(255,255,255,.95) 66%,
+             rgba(255,255,255,0) 100%);
+  opacity:0; will-change:transform,opacity;
+  animation-name:twinkle; animation-timing-function:ease-in-out;
+  animation-iteration-count:infinite;
+}
+@keyframes twinkle{
+  0%,100%{ opacity:0; transform:translate3d(0,0,0)      scaleX(.4) }
+  40%    { opacity:1; transform:translate3d(-11px,0,0)  scaleX(1) }
+  68%    { opacity:.4; transform:translate3d(-19px,0,0) scaleX(.85) }
+}
+
+/* ── 3. crescent wave lines, the shape the artist already painted, set
+       travelling downstream so the surface has direction ─────────────── */
+#arcs{ position:absolute; inset:0; overflow:hidden; }
+#arcs i{
+  position:absolute; display:block; height:16px;
+  border-top:3px solid rgba(255,255,255,.9);
+  border-radius:50% / 100% 100% 0 0;
+  will-change:transform;
+  animation-name:arcRun; animation-timing-function:linear;
+  animation-iteration-count:infinite;
+}
+@keyframes arcRun{
+  0%   { transform:translate3d(240px,0,0) scaleY(.7); opacity:0 }
+  18%  { opacity:1 }
+  82%  { opacity:1 }
+  100% { transform:translate3d(-260px,7px,0) scaleY(1.15); opacity:0 }
+}
+
+/* ── 4. the rock in the current ───────────────────────────────────────── */
+/* Two rocks actually break the surface, both at the right-hand end, and the
+   artist already painted concentric ripples around the larger one. So this is
+   rings expanding from where the rock really is, matching what is painted —
+   not foam wakes invented in open water, which is what the first attempt did
+   and it showed. */
+#rockFx{ position:absolute; inset:0; overflow:hidden; }
+#rockFx o{
+  position:absolute; display:block; border-radius:50%;
+  border:2px solid rgba(255,255,255,.85);
+  opacity:0; will-change:transform,opacity;
+  animation-name:rockRing; animation-timing-function:cubic-bezier(.2,.6,.4,1);
+  animation-iteration-count:infinite;
+}
+@keyframes rockRing{
+  0%  { transform:scale(.25); opacity:0 }
+  22% { opacity:.55 }
+  100%{ transform:scale(1.9) translateX(-18px); opacity:0 }
+}
+
+/* ── 5. foam filaments, stretching as they run ────────────────────────── */
+#streaks{ position:absolute; inset:0; overflow:hidden; }
+#streaks u{
+  position:absolute; display:block; height:2px; border-radius:1px;
+  transform-origin:100% 50%;
+  background:linear-gradient(90deg, rgba(255,255,255,0) 0,
+             rgba(255,255,255,.9) 28%, rgba(255,255,255,.9) 72%, rgba(255,255,255,0) 100%);
+  opacity:0; will-change:transform,opacity;
+  animation-name:streakRun; animation-timing-function:linear;
+  animation-iteration-count:infinite;
+}
+@keyframes streakRun{
+  0%  { transform:translate3d(200px,0,0) scaleX(.28); opacity:0 }
+  14% { opacity:.85 }
+  80% { opacity:.7 }
+  100%{ transform:translate3d(-340px,5px,0) scaleX(1.7); opacity:0 }
+}
+
+/* ── 6. upwellings breaking the surface ───────────────────────────────── */
+#boils{ position:absolute; inset:0; overflow:hidden; }
+#boils o{
+  position:absolute; display:block; border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.55);
+  opacity:0; will-change:transform,opacity;
+  animation-name:boil; animation-timing-function:ease-out;
+  animation-iteration-count:infinite;
+}
+@keyframes boil{
+  0%  { transform:scale(.18) translateX(0);     opacity:0 }
+  20% { opacity:.4 }
+  100%{ transform:scale(1.7)  translateX(-26px); opacity:0 }
+}
+
+/* ── 7. a moving line of white water along the near bank ──────────────── */
+#bankFoam{
+  position:absolute; left:-60px; top:0; width:1240px; height:22px;
+  background:repeating-linear-gradient(105deg,
+             rgba(255,255,255,0) 0 26px,
+             rgba(255,255,255,.7) 30px, rgba(255,255,255,.7) 37px,
+             rgba(255,255,255,0) 44px 74px);
+  -webkit-mask-image:linear-gradient(to bottom, #000, rgba(0,0,0,0));
+          mask-image:linear-gradient(to bottom, #000, rgba(0,0,0,0));
+  opacity:.22; will-change:transform;
+  animation:foamRun 3.4s linear infinite;
+}
+@keyframes foamRun{ from{ transform:translate3d(0,0,0) } to{ transform:translate3d(-74px,0,0) } }
+
+@media (prefers-reduced-motion: reduce){ #river{ display:none; } }
+
+#weather{ position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .9s ease; }
+#weather.on{ opacity:1; }
+#rainSvg{ position:absolute; inset:0; width:100%; height:100%; }
+#rainSvg line{ stroke:#dff4ff; stroke-opacity:.5; stroke-width:2.5; stroke-linecap:round; }
+
+/* ── tank ─────────────────────────────────────────────────────────────── */
+#tank{ position:absolute; left:203px; top:10px; width:714px; height:1084px; }
+
+/* glass interior, tank-local: 148.6,112.9 · 414.3×830.6 */
+#waterSvg{ position:absolute; left:148.6px; top:112.9px; width:414.3px; height:830.6px;
+           pointer-events:none; }
+#flowIn  { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none; z-index:3; }
+#pipeFx  { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none; z-index:5; }
+#flowOut { position:absolute; left:0; top:0; width:1920px; height:1080px; pointer-events:none; z-index:2; }
+
+/* water running inside the pipe bodies — direction at a glance */
+.chev{
+  fill:none; stroke:#2fc9ff; stroke-opacity:.95; stroke-width:15;
+  stroke-linecap:round; stroke-dasharray:20 26;
+  transition:opacity .25s ease;
+  filter:drop-shadow(0 0 7px rgba(60,205,255,.95)) drop-shadow(0 0 2px rgba(0,60,100,.6));
+}
+
+/* valve wheels — coded stand-ins for valve-wheel.png */
+.valve{ position:absolute; pointer-events:none; z-index:6;
+        filter:drop-shadow(0 3px 5px rgba(0,0,0,.35));
+        transition:filter .2s ease; }
+#valveIn { left:100px; top:-10px; width:72px; height:72px; }
+#valveOut{ left:575px; top:852px; width:66px; height:66px; }
+.valve.spin > g, .valve.spin > circle{ transform-origin:50px 50px; }
+.valve.spin{ animation:vspin 1.6s linear infinite; transform-origin:50% 50%; }
+@keyframes vspin{ from{ transform:rotate(0) } to{ transform:rotate(360deg) } }
+.valve.lit{ filter:drop-shadow(0 3px 5px rgba(0,0,0,.35)) drop-shadow(0 0 12px rgba(130,230,255,.95)); }
+
+/* the pipe that is doing the work lights up */
+#pipeIn.active, #pipeOut.active{
+  filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)) drop-shadow(0 0 16px rgba(120,225,255,.85));
+}
+#pipeIn.cue, #pipeOut.cue{ animation:pipeCue 1.25s ease-in-out 3; }
+@keyframes pipeCue{
+  0%,100%{ filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)) }
+  50%    { filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)) drop-shadow(0 0 22px rgba(255,235,120,.95)) }
+}
+#tankArt { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none; }
+
+#pipeIn { position:absolute; left:-93px; top:-173px; width:352px; height:264px;
+          object-fit:contain; pointer-events:none;
+          filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)); }
+#pipeOut{ position:absolute; left:534px;  top:814px;  width:224px; height:168px;
+          object-fit:contain; pointer-events:none;
+          filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)); }
+
+/* ── gauge: ticks + labels ────────────────────────────────────────────── */
+#gauge{ position:absolute; inset:0; }
+
+.lvRow{
+  position:absolute; left:148.6px; width:414.3px; height:72.7px;
+  border-radius:8px; pointer-events:none;
+  transition:background-color .18s ease;
+}
+
+/* tick x360 → tank-local 157 (row starts at 148.6) ; label x441 → 238 */
+.lvTick{
+  position:absolute; left:var(--tickX, 8.4px); top:33.35px; width:65px; height:6px; border-radius:3px;
+  background:#041345; pointer-events:none;
+}
+.lvRow[data-level="0"] .lvTick{
+  width:85px; background:#FFF200; box-shadow:0 0 9px rgba(255,242,0,.75);
+}
+.lvLabel{
+  position:absolute; left:var(--labelX, 89.4px); top:8.85px; width:60px; height:55px;
+  font-size:43px; line-height:55px; font-weight:800; color:#041345;
+  pointer-events:none; white-space:nowrap;
+}
+.lvRow[data-level="0"] .lvLabel{ color:#FFF200; text-shadow:0 2px 4px rgba(0,40,80,.35); }
+
+.lvRow.hl       { background:rgba(255,255,255,.34); box-shadow:inset 0 0 0 3px rgba(255,255,255,.7); }
+.lvRow.pulse    { animation:lvPulse 1.1s ease-in-out infinite; }
+.lvRow.stepGlow { animation:lvStep .55s ease-out 1; }
+.lvRow.zoneGlow { background:rgba(255,242,0,.2); }
+@keyframes lvPulse{
+  0%,100%{ background:rgba(255,242,0,.10); box-shadow:inset 0 0 0 0 rgba(255,242,0,0); }
+  50%    { background:rgba(255,242,0,.42); box-shadow:inset 0 0 0 4px rgba(255,242,0,.85); }
+}
+@keyframes lvStep{ 0%{ background:rgba(255,255,255,.7) } 100%{ background:rgba(255,255,255,0) } }
+
+/* ── draggable marker (x318 → tank-local 115) ─────────────────────────── */
+#marker{
+  position:absolute; left:115px; width:88px; height:79px; margin-top:-39.5px;
+  cursor:grab; touch-action:none; z-index:6;
+  filter:drop-shadow(0 5px 8px rgba(0,0,0,.35));
+  transition:filter .15s ease;
+}
+#marker::before{                       /* generous grab area, invisible */
+  content:""; position:absolute; left:-26px; top:-26px; right:-40px; bottom:-26px;
+}
+#marker.drag{ filter:drop-shadow(0 7px 14px rgba(0,0,0,.45)) brightness(1.06); }
+#marker.hintGlow{ animation:mkGlow 1.4s ease-in-out infinite; }
+@keyframes mkGlow{
+  0%,100%{ filter:drop-shadow(0 5px 8px rgba(0,0,0,.35)) }
+  50%    { filter:drop-shadow(0 0 16px rgba(255,235,90,.95)) }
+}
+#marker:active{ cursor:grabbing; }
+#marker img{ width:100%; height:100%; display:block; }
+#marker.nudge{ animation:mkNudge .85s ease-in-out 2; }
+@keyframes mkNudge{ 0%,100%{transform:translateX(0)} 50%{transform:translateX(-16px)} }
+#tank.locked #marker{ cursor:default; }
+
+/* ── character ────────────────────────────────────────────────────────────
+   The nine poses share a canvas, a ground line and a stance centre, so this
+   box can be a plain rect: 1024×1536 art scaled by 0.4394 puts the body at
+   637 px tall with its feet on y965 and its stance centred on x1775 — exactly
+   where the original single still stood. Nothing shifts when a pose changes. */
+/* Feet on the grass, not over the river. The bank edge at this x runs along
+   y≈935 and the water starts at y≈1005 — the original box put his sandals at
+   y965, i.e. on the cliff face, which is what made him look airborne. This
+   lands them at y925, safely on the ground plane. */
+#guddu{
+  position:absolute; left:1550px; top:266px; width:450px; height:675px;
+  transform-origin:50% 100%;
+}
+#guddu .pose{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain; object-position:center;
+  filter:drop-shadow(0 16px 20px rgba(0,0,0,.24));
+  opacity:0; transition:opacity .22s ease;
+}
+#guddu #poseA{ opacity:1; }
+#guddu.speaking{ animation:breathe 2.6s ease-in-out infinite; }
+@keyframes breathe{
+  0%,100%{ transform:translateY(0) scale(1) }
+  50%    { transform:translateY(-4px) scale(1.006) }
+}
+
+/* ── speech bubble: the Figma rect with the artwork as a cover fill, so the
+      bubble and its tail keep their drawn proportions — nothing is stretched.
+      Text sits in the Figma text box (1289,142 450×132 → 67,41 inside). ───── */
+#bubble{
+  position:absolute; left:1222px; top:101px; width:585px; height:258px;
+  background:url("assets/img/speech-bubble.png") center/cover no-repeat;
+  opacity:0; transform:translateY(-12px) scale(.985);
+  transition:opacity .35s ease, transform .35s ease;
+}
+#bubble.show{ opacity:1; transform:none; }
+#bubbleText{
+  position:absolute; left:67px; top:41px; width:450px; height:132px;
+  margin:0; display:flex; align-items:center; justify-content:center;
+  text-align:center; font-size:30px; line-height:1.24; font-weight:700;
+  color:var(--ink);
+}
+#bubble.good #bubbleText{ color:#0a6b2f; }
+#bubble.bad  #bubbleText{ color:#96400f; }
+
+/* ── equation panel ───────────────────────────────────────────────────── */
+#eqPanel{
+  position:absolute; left:884px; top:443px; width:755px; height:200px;
+  border-style:solid; border-width:22px;
+  border-image:url("assets/img/panel-frame.png") 84 fill / 22px / 0 stretch;
+  animation:eqIn .4s ease-out;
+}
+#eqPanel[hidden]{ display:none; }
+@keyframes eqIn{ from{ opacity:0; transform:translateY(-10px) } to{ opacity:1; transform:none } }
+
+.eqBox{
+  position:absolute; top:0; width:160px; height:156px;
+  background:#fdfdf7; border-radius:16px;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.06), 0 2px 3px rgba(0,0,0,.07);
+  display:grid; place-items:center;
+}
+#eqABox{ left:29px; }     /* abs 935  */
+#eqBBox{ left:282px; }    /* abs 1188 */
+#eqRBox{ left:525px; }    /* abs 1431 */
+.eqBox span{ font-size:58px; font-weight:800; color:var(--ink); line-height:1; }
+#eqB{ color:#0d63b8; transition:transform .18s ease; display:inline-block; }
+#eqB.bump{ transform:scale(1.18); }
+#eqR{ color:#b8600a; }
+#eqPanel.solved #eqR{ color:#0a6b2f; }
+
+.eqSym{
+  position:absolute; top:0; height:156px; width:60px;
+  display:grid; place-items:center;
+  font-size:52px; font-weight:800; color:var(--ink);
+}
+#eqOp{ left:205px; }      /* abs 1141 */
+#eqEq{ left:453px; }      /* abs 1389 */
+
+#eqPanel.pulseEq{ animation:eqPulse 1.05s ease-in-out 3; }
+@keyframes eqPulse{ 0%,100%{ filter:none } 50%{ filter:drop-shadow(0 0 22px rgba(255,205,0,.95)) } }
+
+/* ── buttons ──────────────────────────────────────────────────────────── */
+#checkBtn,#nextBtn{
+  position:absolute; left:1136px; top:667px; width:260px; height:109px;
+  border:0; padding:0; background:transparent; cursor:pointer;
+  background-image:url("assets/img/button-pill-blue.png");
+  background-size:100% 100%; background-repeat:no-repeat;
+  filter:drop-shadow(0 8px 14px rgba(0,0,0,.28));
+  transition:transform .12s ease, filter .12s ease;
+}
+#nextBtn{ background-image:url("assets/img/button-pill-orange.png"); }
+#checkBtn[hidden],#nextBtn[hidden]{ display:none; }
+#checkBtn:hover,#nextBtn:hover{ transform:translateY(-3px) scale(1.02); }
+#checkBtn:active,#nextBtn:active{ transform:translateY(2px) scale(.99); }
+#checkBtn span,#nextBtn span{
+  display:grid; place-items:center; width:100%; height:100%;
+  font-family:var(--font); font-size:38px; font-weight:800; color:#fff;
+  text-shadow:0 3px 4px rgba(0,0,0,.35); letter-spacing:.5px;
+}
+#checkBtn:disabled{ filter:grayscale(.55) opacity(.6); cursor:default; transform:none; }
+#checkBtn.ready{ animation:btnReady 1.5s ease-in-out infinite; }
+@keyframes btnReady{
+  0%,100%{ filter:drop-shadow(0 8px 14px rgba(0,0,0,.28)) }
+  50%    { filter:drop-shadow(0 0 20px rgba(90,200,255,.95)) }
+}
+
+/* ── hud (deliberately small — not part of the Figma frame) ───────────── */
+#hud{ position:absolute; left:0; top:0; width:1920px; height:74px;
+      display:flex; align-items:center; justify-content:flex-end;
+      padding:0 20px; pointer-events:none; }
+#chapterTag{
+  position:absolute; left:24px; bottom:22px;
+  pointer-events:auto; background:rgba(5,25,55,.5); color:#fff;
+  padding:7px 16px; border-radius:999px; display:flex; align-items:baseline; gap:10px;
+}
+#chapterName{ font-size:20px; font-weight:800; }
+#stepTag{ font-size:16px; font-style:normal; opacity:.75; }
+#hudBtns{ display:flex; gap:10px; pointer-events:auto; }
+#hudBtns button{
+  width:50px; height:50px; border-radius:50%; border:0; cursor:pointer;
+  background:rgba(5,25,55,.5); color:#fff; font-size:22px; line-height:1;
+  transition:transform .12s ease, background .2s ease;
+}
+#hudBtns button:hover{ transform:scale(1.08); background:rgba(5,25,55,.72); }
+#hudBtns button.off{ opacity:.5; }
+
+#hintBar{
+  position:absolute; left:1330px; bottom:104px; transform:translateX(-50%);
+  max-width:580px; padding:11px 26px; border-radius:999px;
+  background:rgba(4,19,69,.68); color:#eaf6ff; font-size:23px; font-weight:700;
+  text-align:center; opacity:0; transition:opacity .3s ease; pointer-events:none;
+}
+#hintBar.show{ opacity:1; }
+
+/* ── the flood wipe ───────────────────────────────────────────────────── */
+#flood{
+  position:absolute; left:0; top:0; width:1920px; height:1080px;
+  z-index:45; pointer-events:none; display:none;
+}
+#flood.on{ display:block; }
+
+/* ── start gate ───────────────────────────────────────────────────────── */
+#gate{
+  position:absolute; inset:0; display:grid; place-items:center; z-index:50;
+  background:radial-gradient(120% 90% at 50% 40%, rgba(6,40,72,.76), rgba(2,14,28,.95));
+  transition:opacity .5s ease;
+}
+#gate.hide{ opacity:0; pointer-events:none; }
+.gateCard{ text-align:center; color:#fff; max-width:1000px; padding:0 40px; }
+.gateCard h1{ font-size:84px; margin:0 0 18px; text-shadow:0 6px 24px rgba(0,0,0,.6); }
+.gateCard p{ font-size:33px; margin:0 0 42px; opacity:.92; }
+.gateCard small{ display:block; margin-top:32px; font-size:21px; opacity:.7; font-weight:600; }
+#startBtn{
+  width:340px; height:120px; border:0; padding:0; cursor:pointer; background:transparent;
+  background-image:url("assets/img/button-pill-orange.png");
+  background-size:100% 100%; background-repeat:no-repeat;
+  filter:drop-shadow(0 10px 22px rgba(0,0,0,.45));
+  transition:transform .14s ease;
+}
+#startBtn:hover{ transform:scale(1.04); }
+#startBtn span{ display:grid; place-items:center; width:100%; height:100%;
+                font-family:var(--font); font-size:46px; font-weight:800; color:#fff;
+                text-shadow:0 3px 5px rgba(0,0,0,.4); letter-spacing:2px; }
+
+/* ── feedback flourishes ──────────────────────────────────────────────── */
+#stage.celebrate::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(55% 45% at 30% 50%, rgba(255,255,190,.42), transparent 70%);
+  animation:flash 1s ease-out;
+}
+@keyframes flash{ from{opacity:1} to{opacity:0} }
+
+#stage.shake{ animation:shake .42s ease-in-out; }
+@keyframes shake{
+  0%,100%{ transform:translate(-50%,-50%) scale(var(--s,1)) }
+  25%    { transform:translate(calc(-50% - 9px),-50%) scale(var(--s,1)) }
+  75%    { transform:translate(calc(-50% + 9px),-50%) scale(var(--s,1)) }
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; }
+}
+
+
+/* ═══════════ QA ONLY ═══════════════════════════════════════════════════
+   Level jumper. Delete this whole block, the #qaPanel markup in index.html
+   and the QA block in game.js to remove it.                              */
+#qaPanel{ position:absolute; right:20px; top:86px; z-index:60;
+          font-family:ui-monospace,Menlo,Consolas,monospace; }
+#qaTab{
+  display:block; margin-left:auto; padding:7px 14px; border:0; cursor:pointer;
+  border-radius:999px; background:rgba(5,25,55,.62); color:#9fe6ff;
+  font:600 14px/1 ui-monospace,Menlo,Consolas,monospace; letter-spacing:.5px;
+}
+#qaTab:hover{ background:rgba(5,25,55,.85); }
+#qaList{
+  display:none; margin-top:8px; width:330px; max-height:760px; overflow-y:auto;
+  background:rgba(6,20,44,.94); border-radius:14px; padding:8px;
+  box-shadow:0 12px 34px rgba(0,0,0,.45);
+}
+#qaPanel.open #qaList{ display:block; }
+#qaList button{
+  display:flex; align-items:baseline; gap:10px; width:100%; text-align:left;
+  padding:7px 10px; margin:0; border:0; border-radius:8px; cursor:pointer;
+  background:transparent; color:#dceaff; font:500 13px/1.35 inherit;
+}
+#qaList button:hover{ background:rgba(90,170,255,.22); }
+#qaList i{ font-style:normal; color:#6fd0ff; min-width:22px; }
+#qaList span{ flex:1; }
+#qaList em{ font-style:normal; font-size:11px; opacity:.5; white-space:nowrap; }
+/* ═══════════ end QA ═══════════════════════════════════════════════════ */
+
+
+/* ═══════════ EDITOR (build tool) ═══════════════════════════════════════
+   Delete this block, editor.js and its <script> tag to remove the editor.  */
+.flipX{ transform:scaleX(-1); }
+
+#edTab{
+  position:fixed; right:20px; top:150px; z-index:70; cursor:pointer;
+  padding:7px 14px; border:0; border-radius:999px;
+  background:rgba(5,25,55,.62); color:#ffd479;
+  font:600 14px/1 ui-monospace,Menlo,Consolas,monospace;
+}
+#edTab:hover{ background:rgba(5,25,55,.88); }
+
+#edPanel{
+  position:fixed; right:20px; top:190px; z-index:70; width:330px;
+  display:none; flex-direction:column; gap:9px; padding:14px;
+  background:rgba(6,20,44,.96); color:#dceaff; border-radius:14px;
+  box-shadow:0 16px 40px rgba(0,0,0,.5);
+  font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;
+  max-height:calc(100vh - 220px); overflow-y:auto;
+}
+#edPanel.open{ display:flex; }
+#edPanel header{ display:flex; align-items:center; gap:8px; }
+#edPanel header b{ font-size:14px; color:#ffd479; }
+#edPanel header span{ flex:1; opacity:.6; font-size:11px; }
+#edPanel header button{ border:0; background:none; color:#dceaff; cursor:pointer; font-size:15px; }
+#edPanel select,#edPanel input[type=number],#edPanel textarea{
+  background:#0b1c38; color:#dceaff; border:1px solid #23406e; border-radius:6px;
+  padding:5px 7px; font:inherit; width:100%;
+}
+#edPanel textarea{ height:130px; resize:vertical; white-space:pre; }
+.edRow{ display:flex; align-items:center; gap:8px; }
+.edRow > span{ flex:1; opacity:.8; }
+.edRow select{ flex:2; }
+.edScope{ font-size:12px; flex-wrap:wrap; }
+.edScope label{ display:flex; align-items:center; gap:4px; opacity:.9; }
+.edGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.edExtra{ grid-template-columns:repeat(3,1fr); }
+.edGrid label{ display:flex; flex-direction:column; gap:3px; font-size:11px; opacity:.75; }
+.edHint{ margin:0; font-size:11px; opacity:.55; line-height:1.45; }
+.edBtns{ display:flex; gap:6px; }
+.edBtns button{
+  flex:1; padding:7px 6px; border:0; border-radius:7px; cursor:pointer;
+  background:#1b355c; color:#dceaff; font:inherit;
+}
+.edBtns button:hover{ background:#27497c; }
+.edBtns .edPrimary{ background:#b8791a; color:#fff; }
+.edBtns .edPrimary:hover{ background:#d18d20; }
+
+.edSelected{ outline:2px dashed #ffd479 !important; outline-offset:2px; }
+body.editing #stage{ cursor:move; }
+/* ═══════════ end EDITOR ═══════════════════════════════════════════════ */
