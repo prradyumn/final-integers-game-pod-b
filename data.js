@@ -1,17 +1,33 @@
 /* ============================================================================
    Integers — Water Tank  ·  Pod B
-   FLOW DATA  (transcribed from "Integers - Game V2-3.csv")
+   FLOW DATA  —  transcribed verbatim from "Integers - Game V2.tsv"
    ----------------------------------------------------------------------------
-   Every screen is one object in FLOW.
+   EVERY line of VO, correct feedback, wrong-answer feedback and inactivity
+   prompt below is the doc's own wording. Nothing here is written for the game.
+   If a line reads oddly, it reads oddly in the source — see README, "Lines the
+   doc gets wrong", rather than editing it here.
 
    type      'observe' | 'move' | 'finish'
-   markerOnly / markerStart  park the slider away from the water level
-   start     water level the screen opens on
-   target    level the learner must reach (tap/move)
-   to        level an 'observe' screen animates the water to
-   equation  {a, op, b}  → target is derived:  op '+' ? a+b : a-b
-   wrong[]   three escalating hint tiers  {vo, anim}
-   idle      prompt after INACTIVITY_MS  {vo, anim, speaker}
+
+   ── Level 1 is a MARKER level ────────────────────────────────────────────
+   The water moves on its own, exactly as the narration describes it, and the
+   learner's only job is to bring the marker to where the water went. So:
+
+     start       water level the screen opens on
+     waterTo     level the water travels to by itself, during the narration
+     markerStart where the marker is parked (it stays put while water moves)
+     target      level the learner must bring the marker to  ( === waterTo )
+     markerOnly  true — dragging the marker does NOT drag the water
+
+   ── Levels 2 and 3 are EQUATION levels ───────────────────────────────────
+   The left-hand side is established from the moment the screen opens; the
+   learner solves the right-hand side by moving the water itself.
+
+     start       water level the screen opens on   ( === equation.a )
+     equation    {a, op, b}  → target is derived, never hand-written
+
+   wrong[]   the doc's three escalating tiers  {vo, anim}
+   idle      the doc's inactivity prompt        {vo, anim, speaker}
 
    anim keys are handled in game.js → runHintAnim()
      highlightCentre  highlightZero  pulseZero
@@ -20,147 +36,151 @@
      pulseStart       resetToStart   pulseEquation
    ========================================================================== */
 
-/* The Figma gauge is +5 … −5 (11 ticks). Every level in the flow stays
-   inside that range. */
-const GAUGE_MIN = -5;
-const GAUGE_MAX = 5;
+/* The doc's Level 1 reaches +6, so the gauge runs −6 … +6 (13 ticks).
+   Every level in the flow stays inside that range. */
+const GAUGE_MIN = -6;
+const GAUGE_MAX = 6;
 
 const FLOW = [
 
-  /* ───────────────────────── CHAPTER 1 — The village tank ───────────────── */
+  /* ═══════════════ LEVEL 1 — The village tank (doc rows 1–8) ═════════════
+     Nine screens: six the learner acts on, three they watch.              */
+
   {
     id: 'l1-find0', chapter: 1, chapterName: 'The Village Tank',
     screen: 'Find 0', type: 'move',
-    start: 0, target: 0, markerOnly: true, markerStart: 5,
+    start: 0, target: 0, markerOnly: true, markerStart: 6,
     speaker: 'guddu',
-    vo: 'Find the sufficient water reference level — zero.',
-    hint: 'Drag the red marker down to the 0 level, then press Check.',
+    vo: 'Find 0, the level that shows sufficient water.',
     correct: 'Correct! At 0, we have sufficient water for the village.',
     wrong: [
       { vo: 'Look at the water reference level in the centre of the tank.', anim: 'highlightCentre' },
       { vo: 'Look for the level that shows we have sufficient water.',      anim: 'highlightZero'   },
-      { vo: 'Drag the marker to 0.',                                                       anim: 'pulseZero'       }
+      { vo: 'Tap 0.',                                                       anim: 'pulseZero'       }
     ],
-    idle: { speaker: 'guddu', vo: 'Look for the water reference level at 0.', anim: 'pulseZero' }
+    idle: { speaker: 'pari', vo: 'Look for the water reference level at 0.', anim: 'pulseZero' }
   },
 
   {
     id: 'l1-rain', chapter: 1, screen: 'Water level rises above 0', type: 'observe',
-    start: 0, to: 0, weather: 'rain', slosh: 1.0,
+    start: 0, to: 2, weather: 'rain',
     speaker: 'guddu',
-    vo: 'It rained heavily, so the water level has risen above 0.',
-    hint: 'Watch the rain fill the tank.'
+    vo: 'It rained heavily, so the water level has risen above 0.'
   },
 
   {
-    id: 'l1-0to2', chapter: 1, screen: 'Guided gameplay: +2', type: 'move',
-    start: 0, target: 2, guided: true,
+    id: 'l1-plus2', chapter: 1, screen: 'Guided gameplay: +2', type: 'move',
+    start: 2, target: 2, markerOnly: true, markerStart: 0,
     speaker: 'guddu',
-    vo: 'The water is 2 levels above 0. That is plus 2. Move the water to plus 2.',
-    hint: 'Drag the red marker up from 0 to +2, then press Check.',
-    correct: 'Yes! The water level rises 2 levels above 0. This is written as +2.',
+    vo: 'The water is 2 levels above 0. That is +2. Drag the water level marker to +2',
+    correct: 'Yes! The water level rises 2 levels above 0. This is as +2.',
     wrong: [
-      { vo: 'The water level has risen. Move 2 levels above 0.',                      anim: 'highlightUp'  },
-      { vo: 'Water level rises 2 levels up. Start at 0 and count 2 levels up.',       anim: 'stepThrough'  },
-      { vo: 'Count the levels carefully.',                                            anim: 'pulseSpan'    }
+      { vo: 'The water level has risen. Move 2 levels above 0.',                anim: 'highlightUp' },
+      { vo: 'Water level rises 2 levels up. Start at 0 and count 2 levels up.', anim: 'stepThrough' },
+      { vo: 'Count the levels carefully.',                                      anim: 'pulseSpan'   }
     ],
     idle: { speaker: 'guddu', vo: 'The water rises 2 levels. Start from 0 and count.', anim: 'stepThrough' }
   },
 
   {
-    id: 'l1-2to5', chapter: 1, screen: '(+2) to +5', type: 'move',
-    start: 2, target: 5, guided: true,
+    id: 'l1-plus6', chapter: 1, screen: '(+2) to +6', type: 'move',
+    start: 2, waterTo: 6, target: 6, markerOnly: true, markerStart: 2,
     speaker: 'guddu',
-    vo: 'The water level rises 3 more levels from plus 2. Find the new water level.',
-    hint: 'Drag the red marker up 3 levels: +2, +3, +4, +5.',
-    correct: 'Yes! The water rises 3 levels from +2 and reaches +5.',
+    vo: 'The water level rises 4 levels from +2. Drag the marker to the correct level.',
+    correct: 'Yes! The water rises 4 levels from +2 and reaches +6.',
     wrong: [
-      { vo: 'The water level rises from plus 2. Move 3 levels upward.',                    anim: 'highlightUp' },
-      { vo: 'Water level rises 3 levels up. Start at plus 2 and count 3 levels up.',       anim: 'stepThrough' },
-      { vo: 'Count the 3 levels carefully.',                                               anim: 'pulseSpan'   }
+      { vo: 'The water level rises from +2. Move 4 levels upward.',                 anim: 'highlightUp' },
+      { vo: 'Water level rises 4 levels up. Start at +2 and count 4 levels up.',    anim: 'stepThrough' },
+      { vo: 'Count the 4 levels carefully.',                                        anim: 'pulseSpan'   }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 2 and count 3 levels up.', anim: 'stepThrough' }
+    idle: { speaker: 'guddu', vo: 'Start at +2 and count 4 levels up.', anim: 'stepThrough' }
   },
 
   {
-    id: 'l1-drain1', chapter: 1, screen: 'Water level comes down', type: 'observe',
-    start: 5, to: 5, weather: 'drain',
+    id: 'l1-down1', chapter: 1, screen: 'Water level comes down', type: 'observe',
+    start: 6, to: 6, weather: 'drain',
     speaker: 'guddu',
-    vo: 'The villagers have used some of the stored water, so the water level has come down.',
-    hint: 'Watch the water drain away.',
-    resetAfter: 6
+    vo: 'The villagers have used some of the stored water, so the water level has come down.'
   },
 
   {
-    id: 'l1-5to2', chapter: 1, screen: '(+5) to +2', type: 'move',
-    start: 5, target: 2, guided: true,
+    id: 'l1-plus3', chapter: 1, screen: '(+6) to +3', type: 'move',
+    start: 6, waterTo: 3, target: 3, markerOnly: true, markerStart: 6,
     speaker: 'guddu',
-    vo: 'The water level comes down 3 levels. Move to the new water level.',
-    hint: 'Drag the red marker down 3 levels: +5, +4, +3, +2.',
-    correct: 'Yes! The water comes down 3 levels from +5 and reaches +2.',
+    vo: 'The water level comes down 3 levels from +6. Drag the marker to the new water level.',
+    correct: 'Yes! The water comes down 3 levels from +6 and reaches +3.',
     wrong: [
-      { vo: 'The water level comes down from plus 5. Move 3 levels downward.',                 anim: 'highlightDown' },
-      { vo: 'The water level comes down 3 levels. Start at plus 5 and count 3 levels down.',   anim: 'stepThrough'   },
-      { vo: 'Count the 3 levels carefully.',                                                   anim: 'pulseSpan'     }
+      { vo: 'The water level comes down from +6. Move 3 levels downward.',                    anim: 'highlightDown' },
+      { vo: 'The water level comes down 3 levels. Start at +6 and count 3 levels down.',      anim: 'stepThrough'   },
+      { vo: 'Count the 3 levels carefully.',                                                  anim: 'pulseSpan'     }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 5 and count 3 levels down.', anim: 'stepThrough' }
+    idle: { speaker: 'guddu', vo: 'Start at +6 and count 3 levels down.', anim: 'stepThrough' }
   },
 
   {
-    id: 'l1-drain2', chapter: 1, screen: 'Water level comes down further', type: 'observe',
-    start: 2, to: 2, weather: 'drain',
+    id: 'l1-down2', chapter: 1, screen: 'Water level comes down further', type: 'observe',
+    start: 3, to: 3, weather: 'drain',
     speaker: 'guddu',
-    vo: 'The villagers have used more of the stored water, so the water level has dropped further.',
-    hint: 'Watch the water level.',
-    resetAfter: 3
+    vo: 'The villagers have used more of the stored water, so the water level has dropped further.'
   },
 
   {
-    id: 'l1-2tom2', chapter: 1, screen: '(+2) to −2', type: 'move',
-    start: 2, target: -2, guided: true,
+    id: 'l1-minus1', chapter: 1, screen: '(+3) to −1', type: 'move',
+    start: 3, waterTo: -1, target: -1, markerOnly: true, markerStart: 3,
     speaker: 'guddu',
-    vo: 'The water level comes down 4 levels from plus 2. Move to the new water level.',
-    hint: 'Drag the red marker down 4 levels: +2, +1, 0, −1, −2.',
-    correct: 'Yes! The water comes down 4 levels from +2 and reaches −2.',
+    vo: 'The water level comes down 4 levels from +3. Drag the marker to the new water level.',
+    correct: 'Yes! The water comes down 4 levels from +3 and reaches −1.',
     wrong: [
-      { vo: 'The water level comes down from plus 2. Move 4 levels downward.', anim: 'highlightDown' },
-      { vo: 'Start at plus 2 and count 4 levels down.',                        anim: 'stepThrough'   },
-      { vo: 'Count the 4 levels carefully.',                                   anim: 'pulseSpan'     }
+      { vo: 'The water level comes down from +3. Move 4 levels downward.', anim: 'highlightDown' },
+      { vo: 'Start at +3 and count 4 levels down.',                        anim: 'stepThrough'   },
+      { vo: 'Count the 4 levels carefully.',                               anim: 'pulseSpan'     }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 2 and count 4 levels down.', anim: 'stepThrough' }
+    idle: { speaker: 'guddu', vo: 'Start at +3 and count 4 levels down.', anim: 'stepThrough' }
   },
 
-  /* ───────────────── CHAPTER 2 — Calculate the water levels ──────────────── */
+  {
+    id: 'l1-minus4', chapter: 1, screen: '(−1) to −4', type: 'move',
+    start: -1, waterTo: -4, target: -4, markerOnly: true, markerStart: -1,
+    speaker: 'guddu',
+    vo: 'The water level comes down 3 levels from −1. Drag the marker to the new water level.',
+    correct: 'Yes! The water comes down 3 levels from −1 and reaches −4.',
+    wrong: [
+      { vo: 'The water level comes down from −1. Move 3 levels downward.', anim: 'highlightDown' },
+      { vo: 'Start at −1 and count 3 levels down.',                        anim: 'stepThrough'   },
+      { vo: 'Count the 3 levels carefully.',                               anim: 'pulseSpan'     }
+    ],
+    idle: { speaker: 'guddu', vo: 'Start at −1 and count 3 levels down.', anim: 'stepThrough' }
+  },
+
+  /* ═══════════ LEVEL 2 — Calculate the water levels (doc Level 2) ════════ */
+
   {
     id: 'l2-intro', chapter: 2, chapterName: 'Calculate The Level',
     screen: 'Transition', type: 'observe',
-    start: -2, to: -2,
+    start: 0, to: 0,
     speaker: 'guddu',
-    vo: 'Now let us calculate the water levels exactly.',
-    hint: 'A number sentence will appear beside the tank.'
+    vo: 'Now let’s calculate the water levels exactly.'
   },
 
   {
     id: 'l2-1', chapter: 2, screen: '0 + (+3)', type: 'move',
-    start: 0, equation: { a: 0, op: '+', b: 3 }, guided: true,
+    start: 0, equation: { a: 0, op: '+', b: 3 },
     speaker: 'guddu',
-    vo: 'The water level is at 0. It increases by 3 levels. Let us find the new water level.',
-    hint: 'Drag the red marker up and watch the number sentence change.',
+    vo: 'The water level is at 0. It increases by 3 levels. Let’s find the new water level.',
     correct: 'Correct! The water level rises from 0 to +3.',
     wrong: [
-      { vo: 'The water level needs to rise.',                              anim: 'highlightUp'   },
-      { vo: 'Start at 0 and watch how the water level changes.',           anim: 'pulseStart'    },
-      { vo: 'Count 3 levels carefully.',                                   anim: 'pulseSpan'     }
+      { vo: 'The water level needs to rise.',                    anim: 'highlightUp' },
+      { vo: 'Start at 0 and watch how the water level changes.', anim: 'pulseStart'  },
+      { vo: 'Count 3 levels carefully.',                         anim: 'pulseSpan'   }
     ],
     idle: { speaker: 'guddu', vo: 'Start at 0 and move the water 3 levels up.', anim: 'stepThrough' }
   },
 
   {
-    id: 'l2-turn', chapter: 2, screen: 'Your turn', type: 'observe',
-    start: 2, to: 2,
+    id: 'l2-turn', chapter: 2, screen: 'Now it’s your turn', type: 'observe',
+    start: 3, to: 3,
     speaker: 'guddu',
-    vo: 'Now it is your turn.',
-    hint: 'Read the number sentence yourself, then drag the red marker.'
+    vo: 'Now it’s your turn'
   },
 
   {
@@ -168,29 +188,28 @@ const FLOW = [
     start: 2, equation: { a: 2, op: '+', b: 3 },
     speaker: 'guddu',
     vo: 'Find the new water level.',
-    hint: 'Read the number sentence, then drag the red marker.',
     correct: 'Correct! The water level rises from +2 to +5.',
     wrong: [
-      { vo: 'Check how the water level needs to change.',      anim: 'pulseStart'    },
-      { vo: 'Look at the starting level and try again.',       anim: 'resetToStart'  },
-      { vo: 'Check how many levels the water needs to move.',  anim: 'pulseSpan'     }
+      { vo: 'Check how the water level needs to change.',     anim: 'pulseStart'   },
+      { vo: 'Look at the starting level and try again.',      anim: 'resetToStart' },
+      { vo: 'Check how many levels the water needs to move.', anim: 'pulseSpan'    }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 2 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at +2 and find the new water level.', anim: 'pulseEquation' }
   },
 
   {
     id: 'l2-3', chapter: 2, screen: '(−2) + (+4)', type: 'move',
     start: -2, equation: { a: -2, op: '+', b: 4 },
     speaker: 'guddu',
-    vo: 'The water level increases. Find the new water level.',
-    hint: 'Read the number sentence, then drag the red marker.',
+    /* doc verbatim — the source reads "Water level is increase." */
+    vo: 'Water level is increase. Find the new water level.',
     correct: 'Correct! The water level rises from −2 to +2.',
     wrong: [
-      { vo: 'Check how the water level should change.',              anim: 'pulseStart'   },
-      { vo: 'Start again from minus 2 and watch the level carefully.', anim: 'resetToStart' },
-      { vo: 'Count the levels as the water moves.',                  anim: 'pulseSpan'    }
+      { vo: 'Check how the water level should change.',                anim: 'pulseStart'   },
+      { vo: 'Start again from −2 and watch the level carefully.',      anim: 'resetToStart' },
+      { vo: 'Count the levels as the water moves.',                    anim: 'pulseSpan'    }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at minus 2 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at −2 and find the new water level.', anim: 'pulseEquation' }
   },
 
   {
@@ -198,14 +217,13 @@ const FLOW = [
     start: 3, equation: { a: 3, op: '+', b: -5 },
     speaker: 'guddu',
     vo: 'Your turn! Find the new water level.',
-    hint: 'Watch the sign carefully — should the marker go up or down?',
     correct: 'Correct! The water level comes down from +3 to −2.',
     wrong: [
       { vo: 'Check whether the water level should rise or come down.', anim: 'pulseEquation' },
-      { vo: 'Start again from plus 3 and watch the water level.',      anim: 'resetToStart'  },
+      { vo: 'Start again from +3 and watch the water level.',          anim: 'resetToStart'  },
       { vo: 'Count the levels carefully as the water moves.',          anim: 'pulseSpan'     }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 3 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at +3 and find the new water level.', anim: 'pulseEquation' }
   },
 
   {
@@ -213,45 +231,38 @@ const FLOW = [
     start: -2, equation: { a: -2, op: '+', b: -3 },
     speaker: 'guddu',
     vo: 'Find the new water level.',
-    hint: 'Read the number sentence, then drag the red marker.',
     correct: 'Correct! The water level comes down from −2 to −5.',
     wrong: [
-      { vo: 'Check how the water level should change.',                 anim: 'pulseStart'   },
-      { vo: 'Start again from minus 2 and watch the level carefully.',  anim: 'resetToStart' },
-      { vo: 'Count how many levels the water moves.',                   anim: 'pulseSpan'    }
+      { vo: 'Check how the water level should change.',               anim: 'pulseStart'   },
+      { vo: 'Start again from −2 and watch the level carefully.',     anim: 'resetToStart' },
+      { vo: 'Count how many levels the water moves.',                 anim: 'pulseSpan'    }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at minus 2 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at −2 and find the new water level.', anim: 'pulseEquation' }
   },
 
-  /* ─────────────────── TRANSITION — water is used up ─────────────────────── */
+  /* ═════════════ TRANSITION + LEVEL 3 — subtraction (doc "Game") ═════════ */
+
   {
-    /* Chapter 2 ends at −5 and chapter 3 opens at 0, so the water has to get
-       back up — but the VO here says the villagers USED water and the level
-       came down. Animating the rise with the outflow running said the exact
-       opposite of the line. The climb now happens behind the flood wipe
-       (snapTo sets the level before anything is visible) and the cutscene
-       plays the same dip-and-settle the two chapter-1 drain screens use, so
-       what is shown agrees with what is said. */
     id: 'g-intro', chapter: 3, chapterName: 'Water Used Up',
     screen: 'Transition', type: 'observe',
+    /* Level 2 ends at −5 and Level 3 opens at 0. The climb happens behind the
+       flood wipe, where nothing is visible, so the cutscene can play the
+       downward move the line describes instead of contradicting it. */
     start: 0, to: 0, weather: 'drain',
     speaker: 'guddu',
-    vo: 'The villagers have used some of the stored water, so the water level has decreased.',
-    hint: 'Now the number sentences will use a minus sign.'
+    vo: 'The villagers have used some of the stored water, so the water level has decreased.'
   },
 
-  /* ───────────────────────── CHAPTER 3 — Subtraction ─────────────────────── */
   {
     id: 'g-1', chapter: 3, screen: '0 − (+3)', type: 'move',
-    start: 0, equation: { a: 0, op: '−', b: 3 }, guided: true,
+    start: 0, equation: { a: 0, op: '−', b: 3 },
     speaker: 'guddu',
-    vo: 'The water level is at 0. Now 3 levels are used. Let us find the new water level.',
-    hint: 'Drag the red marker down, one level at a time.',
+    vo: 'The water level is at 0. Now 3 levels are used. Let’s find the new water level.',
     correct: 'Correct! The water level comes down from 0 to −3.',
     wrong: [
-      { vo: 'The water level needs to come down.',                anim: 'highlightDown' },
-      { vo: 'Start at 0 and watch how the water level changes.',  anim: 'pulseStart'    },
-      { vo: 'Count 3 levels carefully.',                          anim: 'pulseSpan'     }
+      { vo: 'The water level needs to come down.',               anim: 'highlightDown' },
+      { vo: 'Start at 0 and watch how the water level changes.', anim: 'pulseStart'    },
+      { vo: 'Count 3 levels carefully.',                         anim: 'pulseSpan'     }
     ],
     idle: { speaker: 'guddu', vo: 'Start at 0 and move the water 3 levels down.', anim: 'stepThrough' }
   },
@@ -260,15 +271,14 @@ const FLOW = [
     id: 'g-2', chapter: 3, screen: '(+4) − (+2)', type: 'move',
     start: 4, equation: { a: 4, op: '−', b: 2 },
     speaker: 'guddu',
-    vo: 'Now it is your turn! Find the new water level.',
-    hint: 'Read the number sentence, then drag the red marker.',
+    vo: 'Now it’s your turn! Find the new water level.',
     correct: 'Correct! The water level comes down from +4 to +2.',
     wrong: [
-      { vo: 'Check how the water level needs to change.',      anim: 'pulseStart'   },
-      { vo: 'Look at the starting level and try again.',       anim: 'resetToStart' },
-      { vo: 'Check how many levels the water needs to move.',  anim: 'pulseSpan'    }
+      { vo: 'Check how the water level needs to change.',     anim: 'pulseStart'   },
+      { vo: 'Look at the starting level and try again.',      anim: 'resetToStart' },
+      { vo: 'Check how many levels the water needs to move.', anim: 'pulseSpan'    }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 4 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at +4 and find the new water level.', anim: 'pulseEquation' }
   },
 
   {
@@ -276,14 +286,13 @@ const FLOW = [
     start: 2, equation: { a: 2, op: '−', b: 4 },
     speaker: 'guddu',
     vo: 'Find the new water level.',
-    hint: 'Read the number sentence, then drag the red marker.',
     correct: 'Correct! The water level comes down from +2 to −2.',
     wrong: [
-      { vo: 'Check how the water level should change.',                anim: 'pulseStart'   },
-      { vo: 'Start again from plus 2 and watch the level carefully.',  anim: 'resetToStart' },
-      { vo: 'Count the levels as the water moves.',                    anim: 'pulseSpan'    }
+      { vo: 'Check how the water level should change.',           anim: 'pulseStart'   },
+      { vo: 'Start again from +2 and watch the level carefully.', anim: 'resetToStart' },
+      { vo: 'Count the levels as the water moves.',               anim: 'pulseSpan'    }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at plus 2 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at +2 and find the new water level.', anim: 'pulseEquation' }
   },
 
   {
@@ -291,14 +300,13 @@ const FLOW = [
     start: -1, equation: { a: -1, op: '−', b: 3 },
     speaker: 'guddu',
     vo: 'Your turn! Find the new water level.',
-    hint: 'Read the number sentence, then drag the red marker.',
     correct: 'Correct! The water level comes down from −1 to −4.',
     wrong: [
-      { vo: 'Check how the water level should change.',                 anim: 'pulseStart'   },
-      { vo: 'Start again from minus 1 and watch the water level.',      anim: 'resetToStart' },
-      { vo: 'Count how many levels the water moves.',                   anim: 'pulseSpan'    }
+      { vo: 'Check how the water level should change.',            anim: 'pulseStart'   },
+      { vo: 'Start again from −1 and watch the water level.',      anim: 'resetToStart' },
+      { vo: 'Count how many levels the water moves.',              anim: 'pulseSpan'    }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at minus 1 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at −1 and find the new water level.', anim: 'pulseEquation' }
   },
 
   {
@@ -306,23 +314,24 @@ const FLOW = [
     start: -3, equation: { a: -3, op: '−', b: -2 },
     speaker: 'guddu',
     vo: 'Find the new water level.',
-    hint: 'Taking away a negative makes the level rise.',
     correct: 'Correct! The water level rises from −3 to −1.',
     wrong: [
-      { vo: 'Check how the water level should change.',                 anim: 'pulseEquation' },
-      { vo: 'Start again from minus 3 and watch the level carefully.',  anim: 'resetToStart'  },
-      { vo: 'Check how many levels the water needs to move.',           anim: 'pulseSpan'     }
+      { vo: 'Check how the water level should change.',            anim: 'pulseEquation' },
+      { vo: 'Start again from −3 and watch the level carefully.',  anim: 'resetToStart'  },
+      { vo: 'Check how many levels the water needs to move.',      anim: 'pulseSpan'     }
     ],
-    idle: { speaker: 'guddu', vo: 'Start at minus 3 and find the new water level.', anim: 'pulseEquation' }
+    idle: { speaker: 'guddu', vo: 'Start at −3 and find the new water level.', anim: 'pulseEquation' }
   },
 
-  /* ──────────────────────────────── FINISH ───────────────────────────────── */
+  /* ──────────────────────────────── FINISH ────────────────────────────────
+     The doc defines no end screen, but the game needs somewhere to stop.
+     This is the ONLY screen whose line is not in the source — replace the VO
+     when the doc gets one. */
   {
     id: 'done', chapter: 3, screen: 'Well done', type: 'finish',
     start: -1, to: -1,
     speaker: 'guddu',
-    vo: 'Shabaash! You can now read the water level above and below zero, and calculate it too.',
-    hint: 'You finished every level.'
+    vo: 'Shabaash! You can now read the water level above and below zero, and calculate it too.'
   }
 ];
 

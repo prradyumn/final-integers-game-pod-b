@@ -10,8 +10,14 @@
 const TANK   = { w: 714, h: 1084 };                        // Figma 199,10 723×1084
 const INT    = { x: 148.6, y: 112.9, w: 414.3, h: 830.6 };  // glass interior, tank-local
 const SVG_W  = 414, SVG_H = 831;
-const STEP_PX= 72.7;                                        // Figma tick spacing
-const TOP_SVG= 60.1;                                        // svg-y of level +5 (frame y183)
+/* The Figma gauge was 11 ticks (+5..−5) at 72.7 apart. The doc's Level 1
+   reaches +6, so the scale is 13 ticks (+6..−6) and the spacing closes up to
+   fit the same 830.6-tall glass interior: 12 gaps x 63 = 756, centred, which
+   leaves a 37.3 margin top and bottom. Everything else — tick rows, marker,
+   water levels, hint animations, the ghost nudge — derives from these two
+   numbers, so this is the only place the change has to be made. */
+const STEP_PX= 63;                                          // tick spacing
+const TOP_SVG= 37.3;                                        // svg-y of GAUGE_MAX
 
 const svgYFor  = lv => TOP_SVG + (GAUGE_MAX - lv) * STEP_PX; // inside #waterSvg
 const tankYFor = lv => INT.y + svgYFor(lv);                  // tank-local
@@ -51,8 +57,6 @@ const colOutHi = $('#colOutHi');
 const dripsOut = $('#dripsOut');
 const riverSplash = $('#riverSplash');
 const riverRings  = $('#riverRings');
-const chevIn   = $('#chevIn');
-const chevOut  = $('#chevOut');
 const pipeIn   = $('#pipeIn');
 const pipeOut  = $('#pipeOut');
 const valveIn  = $('#valveIn');
@@ -66,8 +70,6 @@ const eqA = $('#eqA'), eqOp = $('#eqOp'), eqB = $('#eqB'), eqR = $('#eqR');
 const surfRing = $('#surfRing');
 const checkBtn = $('#checkBtn');
 const nextBtn  = $('#nextBtn');
-const hintBar  = $('#hintBar');
-const hintText = $('#hintText');
 const chapterName = $('#chapterName');
 const stepTag  = $('#stepTag');
 const gate     = $('#gate');
@@ -543,19 +545,20 @@ const Flow = {
   phase: 'off',       // 'lead' | 'run' | 'tail' | 'off'
   vis: 0,             // 0..1 how much column is drawn
   strength: 0,        // 0..1 how hard it is flowing
-  t: 0, phaseT: 0, dash: 0, idleT: 0,
+  t: 0, phaseT: 0, idleT: 0,
+  dash: 0,            // travelling offset for the column highlight streaks
   drips: [], splash: [], rings: [],
 
   /* back-compatible switches used by the flow controller */
   setIn (on){ on ? this.want('in')  : (this.dir === 'in'  && this.want(null)); },
   setOut(on){ on ? this.want('out') : (this.dir === 'out' && this.want(null)); },
 
-  /* Shut one side down completely: pipe glow, valve spin, in-pipe dashes and
-     its audio loop. tick() used to do this inline, and only ever for the
-     direction that was current — so switching straight from 'in' to 'out'
-     (which a drag does the moment it changes direction) started the new side
-     without ever closing the old one, and the inlet stayed lit with its
-     dashes running and its loop still wanted, for good. */
+  /* Shut one side down completely: pipe glow, valve spin and its audio loop.
+     tick() used to do this inline, and only ever for the direction that was
+     current — so switching straight from 'in' to 'out' (which a drag does the
+     moment it changes direction) started the new side without ever closing
+     the old one, and the inlet stayed lit with its loop still wanted, for
+     good. */
   close(d){
     if (!d) return;
     const key = d === 'in' ? 'fill' : 'drain';
@@ -563,7 +566,6 @@ const Flow = {
     Audio_.fadeStop(key, 420);
     (d === 'in' ? pipeIn : pipeOut).classList.remove('active');
     (d === 'in' ? valveIn : valveOut).classList.remove('spin', 'lit');
-    (d === 'in' ? chevIn : chevOut).setAttribute('opacity', '0');
   },
 
   want(dir){
@@ -582,7 +584,6 @@ const Flow = {
       Audio_.want(key, true); Audio_.fadeIn(key, 320);
       (dir === 'in' ? pipeIn : pipeOut).classList.add('active');
       (dir === 'in' ? valveIn : valveOut).classList.add('spin', 'lit');
-      (dir === 'in' ? chevIn : chevOut).setAttribute('opacity', '1');
     } else if (this.dir){
       if (this.phase === 'tail') return;       // already closing; don't restart it
       this.phase = 'tail'; this.phaseT = 0;
@@ -661,8 +662,6 @@ const Flow = {
     this.moveDrips(dt);
     this.moveSplash(dt);
 
-    chevIn .setAttribute('stroke-dashoffset', this.dash.toFixed(1));
-    chevOut.setAttribute('stroke-dashoffset', this.dash.toFixed(1));
   },
 
   /* tapered column from the spout down to the water surface */
@@ -796,14 +795,15 @@ const Rain = {
 /* ═══════════════════ 6 · gauge ═══════════════════════════════════════ */
 const rows = {};
 function buildGauge(){
+  gaugeEl.style.setProperty('--step', STEP_PX + 'px');
   for (let lv = GAUGE_MAX; lv >= GAUGE_MIN; lv--){
     const r = document.createElement('div');
     r.className = 'lvRow';
     r.dataset.level = lv;
-    r.style.top    = (tankYFor(lv) - 36.35) + 'px';
+    r.style.top    = (tankYFor(lv) - STEP_PX / 2) + 'px';
     const tick = document.createElement('i'); tick.className = 'lvTick';
     const lab  = document.createElement('b'); lab.className = 'lvLabel';
-    lab.textContent = lv > 0 ? '+' + lv : (lv < 0 ? '-' + Math.abs(lv) : '0');
+    lab.textContent = fmt(lv);        // same glyph as the equation panel
     r.appendChild(tick); r.appendChild(lab);
     gaugeEl.appendChild(r);
     rows[lv] = r;
@@ -901,18 +901,6 @@ const Mover = {
     Flow.setIn(false); Flow.setOut(false);
     Game.onMoveSettled();
   },
-  async demo(from, to){                     // scripted walk, used by hints
-    Game.level = from; Game.waterLevel = from; Water.set(from, 260); placeMarker(from); await wait(300);
-    const dir = to > from ? 1 : -1;
-    for (let lv = from + dir; dir > 0 ? lv <= to : lv >= to; lv += dir){
-      Game.level = lv; Game.waterLevel = lv; Water.set(lv, STEP_MS); placeMarker(lv);
-      Audio_.play('step');
-      rows[lv].classList.add('stepGlow');
-      setTimeout(() => rows[lv].classList.remove('stepGlow'), 600);
-      Game.onLevelChanged(lv);
-      await wait(STEP_MS + 120);
-    }
-  }
 };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -966,39 +954,25 @@ markerEl.addEventListener('keydown', e => {
 const fmt  = n => n > 0 ? '+' + n : (n < 0 ? '−' + Math.abs(n) : '0');
 const wrap = n => '(' + fmt(n) + ')';
 
-/* Guided screens count the second term up as the learner moves — that is the
-   teaching device the flow sheet asks for. Every other screen must SHOW the
-   number sentence, otherwise there is no question to read: there the second
-   term is fixed and the answer box previews whatever level the learner is on. */
+/* The left-hand side is established the moment the screen opens and never
+   changes — the learner is solving the right-hand side, not assembling the
+   left. The answer box shows whatever level they are currently on, which is
+   their proposed answer, and turns green when it is committed and correct. */
 function renderEquation(step, level, solved){
   if (!step.equation){ eqPanel.hidden = true; return; }
   eqPanel.hidden = false;
   const { a, op, b } = step.equation;
   eqA.textContent  = a === 0 ? '0' : wrap(a);
   eqOp.textContent = op;
-  let bumped;
-  if (step.guided){
-    const delta = level - a;
-    eqB.textContent = wrap(solved ? b : (op === '+' ? delta : -delta));
-    eqR.textContent = solved ? fmt(step.target) : '?';
-    bumped = eqB;
-  } else {
-    eqB.textContent = wrap(b);
-    eqR.textContent = (solved || level !== a) ? fmt(level) : '?';
-    bumped = eqR;
-  }
+  eqB.textContent  = wrap(b);
+  eqR.textContent  = (solved || level !== a) ? fmt(level) : '?';
   eqPanel.classList.toggle('solved', !!solved);
-  bumped.classList.add('bump');
-  setTimeout(() => bumped.classList.remove('bump'), 190);
+  eqR.classList.add('bump');
+  setTimeout(() => eqR.classList.remove('bump'), 190);
 }
 
-/* the number sentence, read the way a teacher would say it */
-const spokenNum = n => n > 0 ? 'plus ' + n : (n < 0 ? 'minus ' + Math.abs(n) : 'zero');
-const eqSentence = e =>
-  `${spokenNum(e.a)}, ${e.op === '+' ? 'plus' : 'minus'}, ${spokenNum(e.b)}. What is the new water level?`;
-const eqWritten  = e => `${wrap(e.a)} ${e.op} ${wrap(e.b)} = ?`;
 
-/* ═══════════════════ 9 · bubble + hint strip ═════════════════════════ */
+/* ═══════════════════ 9 · speech bubble ═══════════════════════════════ */
 async function say(text, speaker = 'guddu', tone = ''){
   Game.lastSpeaker = speaker;
   bubbleTx.textContent = text;
@@ -1006,10 +980,6 @@ async function say(text, speaker = 'guddu', tone = ''){
   if (tone) bubbleEl.classList.add(tone);
   bubbleEl.classList.add('show');
   await VO.speak(text, speaker);
-}
-function setHint(t){
-  hintText.textContent = t || '';
-  hintBar.classList.toggle('show', !!t);
 }
 
 /* ═══════════════════ 9b · the flood wipe ═════════════════════════════
@@ -1158,6 +1128,8 @@ const Game = {
     Audio_.init();
     Audio_.want('ambient', true); Audio_.play('ambient');
     Water.init(); Rain.build(); buildGauge(); Flood.init(); Guddu.preload();
+    markerEl.setAttribute('aria-valuemin', GAUGE_MIN);
+    markerEl.setAttribute('aria-valuemax', GAUGE_MAX);
     applyLayout();
     this.waterLevel = FLOW[0].start; Water.set(this.waterLevel, 0);
     this.level = (typeof FLOW[0].markerStart === 'number') ? FLOW[0].markerStart : FLOW[0].start;
@@ -1230,20 +1202,26 @@ const Game = {
     }
 
     renderEquation(s, this.level, false);
-    setHint('');
 
     const pinned = (((window.LAYOUT || {}).screens || {})[s.id] || {}).guddu;
     Guddu.pose((pinned && pinned.pose) ? pinned.pose
              : s.type === 'observe' ? 'point'
              : s.type === 'finish'  ? 'cheer'
-             : s.guided             ? 'point' : 'talk');
+             : 'talk');
     applyLayout();
     await say(s.vo, s.speaker || 'guddu');
     if (stale()) return;
-    if (s.equation && !s.guided){
-      await wait(300);
-      if (stale()) return;
-      await say(eqSentence(s.equation), 'guddu');
+
+    /* Level 1: the water goes where the narration just said it went, on its
+       own, while the marker stays put. Only then is it the learner's turn —
+       their job is to bring the marker to the level the water reached. */
+    if (typeof s.waterTo === 'number' && s.waterTo !== this.waterLevel){
+      const far = Math.abs(s.waterTo - this.waterLevel);
+      Flow.want(s.waterTo > this.waterLevel ? 'in' : 'out');
+      Water.set(s.waterTo, 420 + far * 260); Water.slosh = 0.9;
+      this.waterLevel = s.waterTo;
+      await wait(560 + far * 260);
+      Flow.want(null);
       if (stale()) return;
     }
     await wait(BEAT);
@@ -1252,11 +1230,9 @@ const Game = {
     if (s.type === 'observe' || s.type === 'finish'){
       await this.runObserve(s, gen);
       if (stale()) return;
-      setHint(s.hint || '');
       if (s.type === 'finish' && i === FLOW.length - 1){
         stage.classList.add('celebrate');
         Audio_.play('correct');
-        setHint(`You answered ${this.firstTry} of ${this.asked} first time.`);
         nextBtn.querySelector('span').textContent = 'Play again';
         nextBtn.dataset.restart = '1';
         nextBtn.hidden = false;           // the only screen that waits for a tap
@@ -1270,9 +1246,6 @@ const Game = {
     Guddu.pose('idle');
     tankEl.classList.remove('locked');
     this.interactive = true;
-    setHint(s.equation && !s.guided
-      ? `Read  ${eqWritten(s.equation)}  then drag the red marker to the answer.`
-      : (s.hint || ''));
     if (s.type === 'move'){ checkBtn.hidden = false; checkBtn.disabled = false; }
     markerEl.classList.add('hintGlow');   // keeps inviting until it is grabbed
     Ghost.arm();
@@ -1288,9 +1261,13 @@ const Game = {
     const stale = () => gen !== undefined && gen !== this.gen;
     if (s.weather === 'rain'){
       Rain.set(true); Flow.setIn(true); Water.slosh = 1;
-      // a visible surge that settles back — the story moves, the number doesn't
-      Water.set(s.start + 0.55, 1400); await wait(1500);
-      Water.set(s.start, 1500); await wait(1600);
+      /* the rain actually fills the tank to the level the doc names, and
+         leaves it there — the next screen asks the learner to find it */
+      const end = (typeof s.to === 'number') ? s.to : s.start;
+      const far = Math.abs(end - s.start);
+      Water.set(end, 900 + far * 300); await wait(1100 + far * 300);
+      if (stale()) return;
+      this.level = end; this.waterLevel = end;
       Flow.setIn(false); Rain.set(false);
     } else if (s.weather === 'drain'){
       Flow.setOut(true); Water.slosh = 0.8;
@@ -1300,6 +1277,7 @@ const Game = {
         Water.set(end, 500 + far * 260); await wait(700 + far * 260);
         if (stale()) return;
         this.level = end; this.waterLevel = end; placeMarker(end);
+
       } else {
         Water.set(s.start - 0.5, 1200); await wait(1300);
         Water.set(s.start, 1300); await wait(1400);
@@ -1374,11 +1352,9 @@ const Game = {
     Water.slosh = 1;
     markCorrect(this.level);
     renderEquation(this.step, this.level, true);
-    setHint('');
     await say(this.step.correct, 'guddu', 'good');
     await wait(BEAT);
     nextBtn.hidden = false;
-    setHint('');
     this.autoNext(AUTO_CORRECT);
   },
 
@@ -1396,16 +1372,8 @@ const Game = {
     await say(tier.vo, 'guddu', 'bad');
     Guddu.pose('think');
     await this.runHintAnim(tier.anim);
-
-    if (this.wrongCount >= 4){            // after four tries, walk it through
-      Guddu.pose('point');
-      await say('Watch carefully — I will show you.', 'guddu');
-      await Mover.demo(this.step.start, this.step.target);
-      await wait(500);
-      await say('Now you try. Move the water back and check again.', 'guddu');
-      Mover.request(this.step.start);
-      await wait(600);
-    }
+    /* The doc defines three tiers and no more, so a fourth attempt repeats
+       the third rather than inventing a walkthrough. */
 
     clearHints();
     Guddu.pose('idle');

@@ -214,20 +214,8 @@ html,body{
 #waterSvg{ position:absolute; left:148.6px; top:112.9px; width:414.3px; height:830.6px;
            pointer-events:none; }
 #flowIn  { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none; z-index:3; }
-/* overflow must stay visible: the inlet riser runs to negative x and y and the
-   outlet mouth past x714, and an svg clips to its viewport by default */
-#pipeFx  { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none;
-           z-index:5; overflow:visible; }
-#flowOut { position:absolute; left:0; top:0; width:1920px; height:1080px; pointer-events:none; z-index:2; }
 
-/* water running inside the pipe bodies — direction at a glance */
-.chev{
-  fill:none; stroke:#2fc9ff; stroke-opacity:.62; stroke-width:18;
-  stroke-linecap:round; stroke-dasharray:20 26;
-  transition:opacity .25s ease;
-  /* soft enough to read as water behind the metal rather than a decal on it */
-  filter:drop-shadow(0 0 5px rgba(60,205,255,.6));
-}
+#flowOut { position:absolute; left:0; top:0; width:1920px; height:1080px; pointer-events:none; z-index:2; }
 
 /* valve wheels — coded stand-ins for valve-wheel.png */
 .valve{ position:absolute; pointer-events:none; z-index:6;
@@ -252,10 +240,10 @@ html,body{
 #tankArt { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none; }
 
 /* z-index 3 puts both pipes ABOVE their flow layers (#flowIn is 3 and comes
-   first in the tree, #flowOut is 2) and below #pipeFx (5) and the valves (6).
-   Without it the water column is painted over the pipe and reads as falling
-   from somewhere above it; with it the column starts inside the bore, the
-   metal hides its top, and the stream emerges at the lip. */
+   first in the tree, #flowOut is 2) and below the valves (6). Without it the
+   water column is painted over the pipe and reads as falling from somewhere
+   above it; with it the column starts inside the bore, the metal hides its
+   top, and the stream emerges at the lip. */
 #pipeIn { position:absolute; left:-93px; top:-173px; width:352px; height:264px; z-index:3;
           object-fit:contain; pointer-events:none;
           filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)); }
@@ -266,23 +254,27 @@ html,body{
 /* ── gauge: ticks + labels ────────────────────────────────────────────── */
 #gauge{ position:absolute; inset:0; }
 
+/* --step is set from STEP_PX in buildGauge(), so the scale can change length
+   (11 ticks to 13, when the doc's +6 came back) without touching this file */
 .lvRow{
-  position:absolute; left:148.6px; width:414.3px; height:72.7px;
+  position:absolute; left:148.6px; width:414.3px; height:var(--step, 63px);
   border-radius:8px; pointer-events:none;
   transition:background-color .18s ease;
 }
 
 /* tick x360 → tank-local 157 (row starts at 148.6) ; label x441 → 238 */
 .lvTick{
-  position:absolute; left:var(--tickX, 8.4px); top:33.35px; width:65px; height:6px; border-radius:3px;
+  position:absolute; left:var(--tickX, 8.4px); top:50%; margin-top:-3px;
+  width:65px; height:6px; border-radius:3px;
   background:#041345; pointer-events:none;
 }
 .lvRow[data-level="0"] .lvTick{
   width:85px; background:#FFF200; box-shadow:0 0 9px rgba(255,242,0,.75);
 }
 .lvLabel{
-  position:absolute; left:var(--labelX, 89.4px); top:8.85px; width:60px; height:55px;
-  font-size:43px; line-height:55px; font-weight:800; color:#041345;
+  position:absolute; left:var(--labelX, 89.4px); top:50%; margin-top:-24px;
+  width:70px; height:48px;
+  font-size:38px; line-height:48px; font-weight:800; color:#041345;
   pointer-events:none; white-space:nowrap;
 }
 .lvRow[data-level="0"] .lvLabel{ color:#FFF200; text-shadow:0 2px 4px rgba(0,40,80,.35); }
@@ -324,7 +316,7 @@ html,body{
 
 /* 1 · the halo that surrounds the line */
 .lvRow.correctGlow::before{
-  z-index:0; left:-25px; right:-6px; height:62px; margin-top:-31px;
+  z-index:0; left:-25px; right:-6px; height:56px; margin-top:-28px;
   border-radius:31px;
   background:radial-gradient(54% 128% at 50% 50%,
     rgba(255,236,150,.95) 0%, rgba(255,198,48,.80) 30%,
@@ -337,7 +329,7 @@ html,body{
 /* 2 · the warm band — the tick element, re-proportioned */
 .lvRow.correctGlow .lvTick{
   z-index:0; left:-31px; right:0; width:auto;
-  top:50%; height:30px; margin-top:-15px; border-radius:15px;
+  top:50%; height:27px; margin-top:-13.5px; border-radius:13.5px;
   background:linear-gradient(180deg,
     rgba(255,222,110,.34), rgba(255,178,20,.55) 50%, rgba(255,222,110,.34));
   box-shadow:none;

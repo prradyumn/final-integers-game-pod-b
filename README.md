@@ -3,13 +3,13 @@
 Open **index.html** in Chrome (double-click it). Nothing to install, no server needed.
 
 ## What it is
-The full 22-screen flow from *Integers - Game V2-3.csv*, built on the Figma
+The full 23-screen flow from *Integers - Game V2.tsv*, built on the Figma
 frame **Integers › page Final › Slide 16:9** (`node 94:1405`).
 
 | Chapter | Screens | What the learner does |
 | --- | --- | --- |
-| The Village Tank | 8 | Find 0, then move the water: 0→+2, +2→+5, +5→+2, +2→−2 |
-| Calculate The Level | 7 | Same tank plus a live number sentence — five addition problems |
+| The Village Tank | 9 | Find 0, then chase the water with the marker: +2, +6, +3, −1, −4 |
+| Calculate The Level | 7 | Same tank plus a number sentence — five addition problems |
 | Water Used Up | 7 | Five subtraction problems, then a finish screen |
 
 Every screen carries its VO line, the correct-answer line, three escalating
@@ -43,18 +43,16 @@ Screen 1 ("find 0") is the one place the marker moves on its own: the water sits
 at 0 and the marker is parked at +5, so there is something to drag.
 
 ### The number sentence
-Two behaviours, on purpose:
 
-* **Guided screens** (`0 + (+3)`, `0 − (+3)`) count the second term up as you
-  drag — `0 + (+1)`, `0 + (+2)`, `0 + (+3)` — which is the teaching device the
-  flow sheet asks for.
-* **Every other equation screen** shows the whole sentence from the start —
-  `(−2) + (+4) = ?` — because the learner is meant to *read* it and work out the
-  answer. The `?` box previews whatever level you are currently on, so you can
-  see your proposed answer before you commit.
+The left-hand side is established the moment the screen opens and never
+changes: `(−2) + (+4) = ?`. The learner is solving the **right-hand side**, not
+assembling the left. The answer box shows whatever level they are currently on
+— their proposed answer — and turns green once it is committed and correct.
 
-Guddu also reads the sentence aloud on those screens, and the strip at the
-bottom spells it out, so nobody is stranded by a terse VO line.
+An earlier build counted the second term up as you dragged on "guided" screens
+(`0 + (+1)`, `0 + (+2)` …). That is not what the doc asks for and it is gone,
+along with the `guided` flag.
+
 Press **Check** to submit.
 
 Get it wrong and you get hint tier 1, then 2, then 3. On the fourth attempt
@@ -106,17 +104,14 @@ All SVG, no sprites.
   horizontal ripple flashes at that tick — the counting is visible in the water,
   not only on the marker.
 * **Valve wheels** on both pipes spin while water runs, and the pipe itself
-  lights up. Cyan dashes travel inside the pipe body so the direction is
-  readable at a glance. During hints the pipe that matters pulses gold.
+  lights up. During hints the pipe that matters pulses gold.
 * **The water comes out of the pipes, not over them.** Both pipes sit at
   `z-index:3`, above their flow layers (`#flowIn` is 3 and earlier in the tree,
   `#flowOut` is 2), and the stream origins are the *centroid of the bore* rather
   than the lip — inlet 205,58 and outlet 718,945, measured off the artwork. The
-  metal hides the top of the column so it emerges from the opening. The
-  `#pipeFx` chevrons trace the bore's real centreline, which runs to negative
-  x/y on the inlet and past x714 on the outlet, so that svg carries
-  `overflow:visible`. Get any of those three wrong and the stream reads as a
-  strip laid over the pipe instead of water inside it.
+  metal hides the top of the column so it emerges from the opening. Get either
+  wrong and the stream reads as a strip laid over the pipe instead of water
+  coming out of it.
 * **Idle drip** from the spout every ~6 s, so the inlet reads as a water source
   before anyone touches anything.
 
@@ -154,18 +149,16 @@ Current cost: 60 fps with the river, 60 fps without. Transform and opacity only.
 
 ### Swapping in real art
 ### The number sentence
-Two behaviours, on purpose:
 
-* **Guided screens** (`0 + (+3)`, `0 − (+3)`) count the second term up as you
-  drag — `0 + (+1)`, `0 + (+2)`, `0 + (+3)` — which is the teaching device the
-  flow sheet asks for.
-* **Every other equation screen** shows the whole sentence from the start —
-  `(−2) + (+4) = ?` — because the learner is meant to *read* it and work out the
-  answer. The `?` box previews whatever level you are currently on, so you can
-  see your proposed answer before you commit.
+The left-hand side is established the moment the screen opens and never
+changes: `(−2) + (+4) = ?`. The learner is solving the **right-hand side**, not
+assembling the left. The answer box shows whatever level they are currently on
+— their proposed answer — and turns green once it is committed and correct.
 
-Guddu also reads the sentence aloud on those screens, and the strip at the
-bottom spells it out, so nobody is stranded by a terse VO line.
+An earlier build counted the second term up as you dragged on "guided" screens
+(`0 + (+1)`, `0 + (+2)` …). That is not what the doc asks for and it is gone,
+along with the `guided` flag.
+
 Press **Check** to submit.
 
 Get it wrong and you get hint tier 1, then 2, then 3. On the fourth attempt
@@ -237,20 +230,16 @@ Fixed body, `touch-action:none`, `overscroll-behavior:none`, pinch and
 double-tap zoom killed, and a guard that snaps `scrollTo(0,0)`. The stage scales
 with one transform so it always fits the window, never zooms.
 
-## One deliberate change from the CSV
-The Figma gauge is **+5 … −5** (11 ticks). The CSV's Level-1 screens ask the
-water to reach **+6**, which does not exist on that gauge, so those two screens
-were retargeted to keep every arithmetic beat intact:
+## The gauge runs −6 … +6
 
-| CSV | Here | Movement |
-| --- | --- | --- |
-| (+2) → +6 | (+2) → +5 | rise 3 (was rise 4) |
-| (+6) → +3 | (+5) → +2 | fall 3 (unchanged) |
-| (+3) → −1 | (+2) → −2 | fall 4 (unchanged) |
-
-Levels 2 and 3 already sit inside ±5 and are untouched. If the gauge should
-really run to ±6, say so and I will add the two extra ticks and restore the
-original numbers.
+The Figma frame drew 11 ticks (+5 … −5). The flow doc's Level 1 reaches **+6**,
+so the scale is 13 ticks and the spacing closes from 72.7 to **63** to fit the
+same 830.6-tall glass interior — 12 gaps x 63 = 756, centred, 37.3 margin top
+and bottom. `STEP_PX` and `TOP_SVG` at the top of game.js are the only two
+numbers involved; tick rows, the marker, water levels, hint animations and the
+ghost nudge all derive from them, and `--step` carries the row height into the
+CSS. An earlier build retargeted those screens to +5 instead; the doc is now
+followed exactly.
 
 ## Pacing: when the game moves on by itself
 | Screen | Behaviour |
@@ -434,6 +423,67 @@ fist. Measured overlap of opaque pixels at the Figma rect:
 **1170,49** is the nearest position that clears all nine poses with 12px to
 spare while keeping the tail pointing down-right at his head. `#bubbleText` is
 a child of `#bubble`, so it rides along.
+
+## The in-pipe direction dashes, and why they are gone
+
+There used to be a `#pipeFx` layer drawing cyan dashes along each pipe's bore
+so the direction of travel was readable on the pipe itself. They were removed.
+
+The paths were wrong to begin with — the inlet one ran along the bottom lip and
+then straight off into open sky, because the svg's `viewBox` clipped the true
+centreline (the inlet riser is at negative x *and* y). Tracing both bores off
+the artwork and adding `overflow:visible` fixed the geometry, and it still
+looked wrong: the pipe art is opaque, fully-rendered steel with specular
+highlights, so anything painted over it reads as a decal on the surface, never
+as fluid inside it. Aligned or not, it was a blue smear on the metal.
+
+Direction is carried by three other cues, all of which survive: the valve wheel
+spins, the pipe body glows (`#pipeIn.active` / `#pipeOut.active`), and the water
+column visibly leaves the mouth. The dashes were the only one of the four that
+looked wrong and the only one that was redundant.
+
+**To bring them back properly** the pipe needs redrawing with a glass or
+cut-away section, with the dashes moved *behind* the pipe so they show through
+it. A `mix-blend-mode:screen` sheen over the metal is the no-new-art middle
+option, but blend modes force a backdrop readback — the river section above
+measured that at 38fps vs 59.8 — so it would need measuring before it stays.
+
+## Two interaction models, one per level
+
+**Level 1 is a marker level.** The water moves on its own, exactly as the
+narration describes, and the learner's only job is to bring the marker to where
+it went. It rained, so the water *actually rises to +2* — then you drag the
+marker to +2. Every Level 1 screen works this way (`markerOnly: true`, with
+`waterTo` naming where the water travels during the narration). Dragging the
+marker never drags the water.
+
+**Levels 2 and 3 are equation levels.** The number sentence is complete from the
+moment the screen opens and the learner moves the *water* to solve the
+right-hand side.
+
+## Lines that came out, and one the doc gets wrong
+
+Everything spoken or written on screen is now the doc's own wording. These were
+written for the game and have been removed:
+
+| Removed | Was |
+| --- | --- |
+| the spoken number sentence | a second VO line reading the equation aloud after the screen's own line |
+| the hint strip | `Read (−2) + (+4) = ? then drag the red marker to the answer` and a per-screen `hint` on every screen |
+| the fourth-attempt walkthrough | "Watch carefully — I will show you", a scripted demo, then "Now you try." The doc defines three tiers, so a fourth attempt now repeats the third |
+| the first-try tally | `You answered 12 of 16 first time.` on the finish screen |
+
+Two places where the source itself needs a look:
+
+* **`(−2) + (+4)`** — the doc's VO is *"Water level is increase. Find the new
+  water level."* It is transcribed verbatim and read aloud as written.
+* **Screen 1** — the doc says *"Learner taps 0"* and its third hint is
+  *"Tap 0."*, but from screen 3 onward it says *"Drag the water level marker"*.
+  The build is a drag throughout, so that one hint tells the learner to do
+  something the game does not accept.
+
+The finish screen is the only screen with no doc entry at all; the game needs
+somewhere to stop, so its line is a placeholder.
 
 ## Files
 ```
