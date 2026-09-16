@@ -35,6 +35,7 @@ const stage    = $('#stage');
 const tankEl   = $('#tank');
 const gaugeEl  = $('#gauge');
 const markerEl = $('#marker');
+const ghostEl  = $('#ghost');
 const waveFront= $('#waveFront');
 const waveBack = $('#waveBack');
 const waveLine = $('#waveLine');
@@ -309,6 +310,15 @@ window.addEventListener('beforeunload', () => { Audio_.stopAll(); VO.cancel(); }
 const POSES = ['talk','point','happy','cheer','worried','surprised',
                'think','idle','neutral'];
 
+/* guddu-point.png is clipped by the left edge of its own canvas: its opaque
+   content runs to x0 of a 1024-wide image and the pointing hand is missing
+   pixels, not mispositioned. Nothing here can recover them — object-fit is
+   `contain`, which never crops, so the fault is in the asset. Until it is
+   re-exported with the hand inside the frame, `point` falls back to `talk`,
+   the same leftward presenting gesture with an intact hand.
+   Empty this map when the new art lands and `point` comes back by itself. */
+const POSE_SUB = { point: 'talk' };
+
 const Guddu = {
   el: $('#guddu'), a: $('#poseA'), b: $('#poseB'),
   front: 'a', cur: 'talk',
@@ -318,6 +328,7 @@ const Guddu = {
   },
 
   pose(name){
+    name = POSE_SUB[name] || name;
     if (!POSES.includes(name) || name === this.cur) return;
     this.cur = name;
     const showing = this.front === 'a' ? this.b : this.a;
@@ -426,7 +437,9 @@ const Water = {
   tick(now, dt){
     /* level tween */
     if (this.dur > 0){
-      const p = Math.min(1, (now - this.t0) / this.dur);
+      /* clamped at both ends: t0 comes from performance.now() and `now` from
+         the rAF timestamp, and a negative p would run away through 2p² */
+      const p = Math.max(0, Math.min(1, (now - this.t0) / this.dur));
       const e = p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p + 2, 2) / 2;
       this.shown = this.from + (this.to - this.from) * e;
       if (p >= 1) this.dur = 0;
@@ -515,8 +528,14 @@ const Water = {
    falls. Strength tracks how fast the learner is dragging, so one level is a
    spurt and four levels in one gesture is a proper pour.                  */
 const Flow = {
-  SPOUT: { x: 208, y: 76 },        // inlet mouth, tank-local
-  DRAIN: { x: 737, y: 938 },       // outlet mouth, tank-local
+  /* Both origins sit at the CENTROID OF THE BORE, measured off the pipe
+     artwork, not at the lip: the pipes paint above these layers, so the top
+     of the column is hidden inside the mouth and the water emerges from the
+     opening instead of appearing to fall from above it.
+       pipe-inlet-s-bend  bore centroid 204.9,57.9  (lower lip y≈77.7)
+       pipe-outlet-elbow  bore centroid 718.2,945.4 (bore x677..757 y921..961) */
+  SPOUT: { x: 205, y: 58 },        // inlet mouth, tank-local
+  DRAIN: { x: 718, y: 945 },       // outlet mouth, tank-local
   RIVER: { x: 1015, y: 1044 },     // where the outflow lands, stage coords
   TANK_X: 203, TANK_Y: 10,         // tank origin on the stage
 
@@ -770,9 +789,64 @@ function placeMarker(lv){
   markerEl.setAttribute('aria-valuenow', lv);
 }
 function clearHints(){
-  Object.values(rows).forEach(r => r.classList.remove('hl','pulse','zoneGlow','stepGlow'));
+  Object.values(rows).forEach(r =>
+    r.classList.remove('hl','pulse','zoneGlow','stepGlow','correctGlow'));
   eqPanel.classList.remove('pulseEq');
+  markerEl.classList.remove('correct','hintGlow');
 }
+
+/* The answer line. Once a screen is solved, the row the marker came to rest
+   on lights up: a gold beam opens out from the centre, wraps the tick, the
+   label and the marker itself, a shine runs along it twice, and then it sits
+   there breathing until the screen changes. It is the last thing the learner
+   sees before the game moves on, so it is worth the animation. */
+function markCorrect(lv){
+  const r = rows[lv]; if (!r) return;
+  r.classList.remove('correctGlow');
+  void r.offsetWidth;                      // restart it if it is already lit
+  r.classList.add('correctGlow');
+  markerEl.classList.add('correct');
+}
+
+/* ═══════════════════ 6b · the ghost nudge ════════════════════════════
+   A see-through copy of the marker, pressed and dragged a short way by a
+   hand and released, on a loop, so there is no doubt about what to grab or
+   what to do with it.
+
+   It demonstrates the gesture and never the answer: it always travels the
+   same short distance whichever way the target lies, and it picks its
+   direction by which end of the gauge has room, not by where the answer
+   is. It starts a couple of seconds into a screen and stops for good the
+   moment the learner touches the marker.                                  */
+const GHOST_ARM   = 2600;    // quiet time before the hand turns up
+const GHOST_TRAVEL= 1.6;     // levels it drags — a gesture, not an answer
+
+const Ghost = {
+  timer: null, running: false,
+
+  arm(){
+    this.stop();
+    if (!Game.interactive || Game.touched) return;
+    this.timer = setTimeout(() => this.play(), GHOST_ARM);
+  },
+
+  play(){
+    if (!Game.interactive || Game.touched) return;
+    /* down reads best; go up only when there is no room below */
+    const dir = (Game.level - GAUGE_MIN) >= 2 ? 1 : -1;
+    ghostEl.style.top = tankYFor(Game.level) + 'px';
+    ghostEl.style.setProperty('--gy', (dir * GHOST_TRAVEL * STEP_PX).toFixed(1) + 'px');
+    ghostEl.classList.add('run');
+    this.running = true;
+  },
+
+  stop(){
+    clearTimeout(this.timer);
+    if (!this.running) return;
+    ghostEl.classList.remove('run');
+    this.running = false;
+  }
+};
 
 /* ═══════════════════ 7 · level stepper (one level at a time) ═════════ */
 const Mover = {
@@ -830,6 +904,8 @@ let dragging = false;
 markerEl.addEventListener('pointerdown', e => {
   if (!Game.interactive) return;
   dragging = true;
+  Game.touched = true;                 // the nudges have done their job
+  Ghost.stop();
   markerEl.classList.add('drag');
   markerEl.classList.remove('hintGlow');
   try { markerEl.setPointerCapture(e.pointerId); } catch(_){}
@@ -854,6 +930,9 @@ markerEl.addEventListener('lostpointercapture', endDrag);
 /* keyboard equivalent of the drag, one level per press */
 markerEl.addEventListener('keydown', e => {
   if (!Game.interactive) return;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+    Game.touched = true; Ghost.stop(); markerEl.classList.remove('hintGlow');
+  }
   if (e.key === 'ArrowUp'   || e.key === 'ArrowRight'){ Game.slideTo(Game.level + 1); Game.settle(); Game.poke(); e.preventDefault(); }
   if (e.key === 'ArrowDown' || e.key === 'ArrowLeft' ){ Game.slideTo(Game.level - 1); Game.settle(); Game.poke(); e.preventDefault(); }
 });
@@ -1001,6 +1080,53 @@ const Game = {
   i: 0, step: null, level: 0, waterLevel: 0, interactive: false, lastSpeaker: 'guddu',
   asked: 0, firstTry: 0, autoTimer: null,
   wrongCount: 0, idleTimer: null, solved: false,
+  touched: false,               // has the learner grabbed the marker on this screen
+
+  /* every run of show() carries a number; anything that was awaiting when a
+     new screen starts sees a stale one and drops out instead of stamping
+     itself over the screen that replaced it */
+  gen: 0,
+
+  /* ── hold ────────────────────────────────────────────────────────────
+     Freeze the flow, leave the scene running. The water, river, rain,
+     pipes, valves and character carry on exactly as they are and the marker
+     still drags — what stops is the flow controller: no auto-advance, no
+     inactivity prompt, no chapter wipe. Whatever the game wanted to do
+     while held is remembered and happens the moment it is released.
+     A deliberate tap on Continue is never held back.
+     The screen editor drives this; nothing else in the game sets it. */
+  hold: false, heldAuto: 0, heldNext: false,
+
+  setHold(on){
+    on = !!on;
+    if (on === this.hold) return this.hold;
+    this.hold = on;
+    document.body.classList.toggle('held', on);
+    if (on){
+      clearTimeout(this.autoTimer);
+      clearTimeout(this.idleTimer);
+    } else if (this.heldNext){
+      this.heldNext = false; this.heldAuto = 0; this.next(true);
+    } else if (this.heldAuto){
+      const ms = this.heldAuto; this.heldAuto = 0; this.autoNext(ms);
+    } else {
+      this.poke();
+    }
+    return this.hold;
+  },
+
+  /* manual transport, for stepping through screens by hand. Works whether
+     or not the flow is held, and lands with no long travel. */
+  goTo(i){
+    i = Math.max(0, Math.min(FLOW.length - 1, i));
+    clearTimeout(this.autoTimer); clearTimeout(this.idleTimer);
+    this.heldAuto = 0; this.heldNext = false;
+    VO.cancel();
+    nextBtn.hidden = true; nextBtn.dataset.restart = '';
+    nextBtn.querySelector('span').textContent = 'Continue';
+    stage.classList.remove('celebrate');
+    this.snapTo(i);
+  },
 
   async start(){
     Audio_.init();
@@ -1018,6 +1144,7 @@ const Game = {
   /* move on by ourselves, unless the learner got there first */
   autoNext(ms){
     clearTimeout(this.autoTimer);
+    if (this.hold){ this.heldAuto = ms; return; }   // frozen — remember it
     const at = this.i;
     this.autoTimer = setTimeout(() => {
       if (this.i !== at) return;              // already moved on
@@ -1028,15 +1155,19 @@ const Game = {
 
   poke(){                                   // any learner activity resets idle
     clearTimeout(this.idleTimer);
-    if (!this.interactive) return;
+    if (!this.interactive || this.hold) return;
     this.idleTimer = setTimeout(() => this.onIdle(), INACTIVITY_MS);
   },
 
   async show(i){
+    const gen = ++this.gen;                 // anything older than this is dead
+    const stale = () => gen !== this.gen;
     this.i = i;
     const s = this.step = FLOW[i];
     this.wrongCount = 0; this.solved = false;
     this.interactive = false;
+    this.touched = false; Ghost.stop();
+    this.heldAuto = 0; this.heldNext = false;
     clearTimeout(this.idleTimer); clearTimeout(this.autoTimer); clearHints();
     tankEl.classList.add('locked');
     checkBtn.hidden = true; nextBtn.hidden = true;
@@ -1066,6 +1197,7 @@ const Game = {
       await wait(Math.min(1600, ms + 90));
       markerEl.style.transition = '';
       Flow.want(null);
+      if (stale()) return;
     } else {
       this.level = wantMarker; placeMarker(this.level);
     }
@@ -1080,14 +1212,19 @@ const Game = {
              : s.guided             ? 'point' : 'talk');
     applyLayout();
     await say(s.vo, s.speaker || 'guddu');
+    if (stale()) return;
     if (s.equation && !s.guided){
       await wait(300);
+      if (stale()) return;
       await say(eqSentence(s.equation), 'guddu');
+      if (stale()) return;
     }
     await wait(BEAT);
+    if (stale()) return;
 
     if (s.type === 'observe' || s.type === 'finish'){
-      await this.runObserve(s);
+      await this.runObserve(s, gen);
+      if (stale()) return;
       setHint(s.hint || '');
       if (s.type === 'finish' && i === FLOW.length - 1){
         stage.classList.add('celebrate');
@@ -1110,8 +1247,8 @@ const Game = {
       ? `Read  ${eqWritten(s.equation)}  then drag the red marker to the answer.`
       : (s.hint || ''));
     if (s.type === 'move'){ checkBtn.hidden = false; checkBtn.disabled = false; }
-    markerEl.classList.add('hintGlow');
-    setTimeout(() => markerEl.classList.remove('hintGlow'), 4200);
+    markerEl.classList.add('hintGlow');   // keeps inviting until it is grabbed
+    Ghost.arm();
     if (typeof s.target === 'number'){
       const from = (typeof s.markerStart === 'number') ? s.markerStart : s.start;
       if (s.target > from) Flow.cue('in');
@@ -1120,7 +1257,8 @@ const Game = {
     this.poke();
   },
 
-  async runObserve(s){
+  async runObserve(s, gen){
+    const stale = () => gen !== undefined && gen !== this.gen;
     if (s.weather === 'rain'){
       Rain.set(true); Flow.setIn(true); Water.slosh = 1;
       // a visible surge that settles back — the story moves, the number doesn't
@@ -1133,6 +1271,7 @@ const Game = {
       if (end !== s.start){
         const far = Math.abs(end - s.start);
         Water.set(end, 500 + far * 260); await wait(700 + far * 260);
+        if (stale()) return;
         this.level = end; this.waterLevel = end; placeMarker(end);
       } else {
         Water.set(s.start - 0.5, 1200); await wait(1300);
@@ -1186,6 +1325,7 @@ const Game = {
   async check(){
     if (!this.interactive) return;
     this.interactive = false;
+    Ghost.stop();
     checkBtn.disabled = true; checkBtn.classList.remove('ready');
     clearTimeout(this.idleTimer);
     await wait(180);
@@ -1195,6 +1335,7 @@ const Game = {
 
   async correct(){
     this.interactive = false; this.solved = true;
+    Ghost.stop();
     this.asked++; if (this.wrongCount === 0) this.firstTry++;
     tankEl.classList.add('locked');
     clearTimeout(this.idleTimer); clearHints();
@@ -1204,6 +1345,7 @@ const Game = {
     stage.classList.add('celebrate');
     setTimeout(() => stage.classList.remove('celebrate'), 1000);
     Water.slosh = 1;
+    markCorrect(this.level);
     renderEquation(this.step, this.level, true);
     setHint('');
     await say(this.step.correct, 'guddu', 'good');
@@ -1215,6 +1357,7 @@ const Game = {
 
   async wrong(){
     this.wrongCount++;
+    Ghost.stop();
     const tierIdx = Math.min(this.wrongCount, 3) - 1;
     const tier = (this.step.wrong && this.step.wrong[tierIdx]) || { vo:'Try once more.', anim:'pulseStart' };
     this.interactive = false;
@@ -1243,20 +1386,27 @@ const Game = {
     this.interactive = true;
     checkBtn.disabled = false;
     if (this.step.type === 'move') checkBtn.hidden = false;
+    /* pressing Check without ever moving the marker is exactly the person
+       the hand is for, so offer it again — but never to someone who has
+       been dragging and simply got it wrong */
+    if (!this.touched){ markerEl.classList.add('hintGlow'); Ghost.arm(); }
     this.poke();
   },
 
   async onIdle(){
-    if (!this.interactive) return;
+    if (!this.interactive || this.hold) return;
     const idle = this.step.idle;
     if (!idle) { this.poke(); return; }
     this.interactive = false;
+    Ghost.stop();
     Guddu.pose('think');
     await say(idle.vo, idle.speaker || 'guddu');
     await this.runHintAnim(idle.anim);
     clearHints();
     Guddu.pose('idle');
     this.interactive = true;
+    /* fifteen seconds of nothing earns the hand back, touched or not */
+    this.touched = false; markerEl.classList.add('hintGlow'); Ghost.arm();
     this.poke();
   },
 
@@ -1314,7 +1464,8 @@ const Game = {
   setPose(name){ Guddu.pose(name); },
   get __poseNow(){ return Guddu.cur; },
 
-  next(){
+  next(force){
+    if (this.hold && !force){ this.heldNext = true; return; }
     const i = this.i + 1;
     if (i >= FLOW.length) return;
     const chapterChanges = FLOW[i].chapter !== this.step.chapter;
@@ -1346,7 +1497,7 @@ checkBtn.addEventListener('click', () => Game.check());
 nextBtn .addEventListener('click', () => {
   clearTimeout(Game.autoTimer);
   if (nextBtn.dataset.restart === '1'){ location.reload(); return; }
-  nextBtn.hidden = true; Game.next();
+  nextBtn.hidden = true; Game.next(true);     // a deliberate tap always goes
 });
 
 $('#replayBtn').addEventListener('click', () => {

@@ -215,6 +215,18 @@
         <img src="assets/img/marker-arrow-bold.png" alt="">
       </div>
 
+      <!-- the ghost nudge: a see-through copy of the marker with a hand on
+           it, dragged a short way and released, on a loop, until the learner
+           touches the real one. It shows the gesture, never the answer — it
+           travels the same distance whatever the target is. The hand is
+           hand-nudge.png, cropped in CSS to drop the motion arcs the artwork
+           carries — they read as sideways movement, and this drag is up and
+           down. -->
+      <div id="ghost" aria-hidden="true">
+        <img class="ghostMarker" src="assets/img/marker-arrow-bold.png" alt="">
+        <i id="ghostHand"></i>
+      </div>
+
       <img id="pipeIn"  src="assets/img/pipe-inlet-s-bend.png"  alt="">
       <img id="pipeOut" src="assets/img/pipe-outlet-elbow.png" alt="">
 

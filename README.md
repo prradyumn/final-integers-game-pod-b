@@ -10,7 +10,7 @@ frame **Integers › page Final › Slide 16:9** (`node 94:1405`).
 | --- | --- | --- |
 | The Village Tank | 8 | Find 0, then move the water: 0→+2, +2→+5, +5→+2, +2→−2 |
 | Calculate The Level | 7 | Same tank plus a live number sentence — five addition problems |
-| Water Used Up | 6 | Five subtraction problems, then a finish screen |
+| Water Used Up | 7 | Five subtraction problems, then a finish screen |
 
 Every screen carries its VO line, the correct-answer line, three escalating
 wrong-answer hints with their animations, and an inactivity prompt — exactly as
@@ -73,6 +73,20 @@ or stretched. The text sits in the frame's own text box (1289,142 450×132).
 
 Pari has no artwork in the final frame, so her two CSV lines (the screen-1
 inactivity prompt and "now it's your turn") are spoken by Guddu Bhaiya.
+
+**Which way he faces.** The tank is on his left, so every pose has to read
+leftward. Six were drawn facing the other way — `talk`, `think`, `idle`,
+`worried`, `surprised`, `cheer` — and are mirrored in `layout.js` under
+`poses`, which is what that record is for. `point`, `neutral` and `happy`
+already face the tank.
+
+`talk` is the one that mattered most: it is the narration pose on every
+unguided "move" screen, nine of them, so it is on screen for most of the game.
+
+A screen-scoped flip **XORs** with a pose-scoped one, so recording `guddu:
+{flip:true}` on a screen mirrors the poses that are not in `poses` and
+*un*-mirrors the ones that are. Facing is a property of the pose, so it belongs
+in `poses` every time.
 
 ## Water, inlet and outlet
 All SVG, no sprites.
@@ -250,6 +264,129 @@ No new artwork: it is the same water language as the tank — a wavy surface wit
 hard-edged foam on top and bubbles below — over the same background. Timings are
 `FLOOD_REST` / `FLOOD_TOP` and the two `ramp()` calls in `Flood.wipe()` in
 game.js if you want it faster or slower.
+
+## Telling the learner what to do with the marker
+
+Three layers, escalating only if the one before it is ignored:
+
+1. **The marker pulses** the moment a screen becomes interactive — it breathes
+   and glows, because a thing that changes size reads as grabbable and a thing
+   that only changes colour reads as decoration. It keeps going until the
+   marker is touched, not for a fixed few seconds.
+2. **A ghost hand drags it.** After `GHOST_ARM` (2.6 s) of nothing, a
+   see-through copy of the marker is pressed, dragged `GHOST_TRAVEL`
+   (1.6 levels) and released, on a loop. It demonstrates the *gesture*, never
+   the answer: it always travels the same short distance whichever way the
+   target lies, and it picks its direction by which end of the gauge has room.
+   It stops for good the moment the real marker is touched.
+3. **The inactivity prompt** at 15 s, as before — and that one hands the pulse
+   and the hand back, on the grounds that fifteen seconds of silence has
+   earned them.
+
+Pressing Check without ever moving the marker also re-offers the hand; getting
+it wrong after dragging does not.
+
+The hand is `assets/img/hand-nudge.png`, cropped in CSS to the hand alone —
+the artwork carries blue motion arcs that read as sideways movement, and this
+drag is vertical. It is mirrored about its own fingertip so the finger stays on
+the marker and only the arm swings clear of the tank wall.
+
+The marker's tick-to-tick snap is now eased (140 ms, 80 ms while dragging)
+rather than jumped, so it reads as magnetic instead of twitchy.
+
+## The answer line
+
+When a screen is solved, the row the marker came to rest on lights up: a gold
+rule opens out from the centre, wraps the tick, the number and the marker as
+one object, a shine runs along it twice, and then it breathes until the screen
+changes. It is the last thing the learner sees before the game moves on.
+
+Three layers, because one gold bar washes out over pale glass and gets lost
+over blue water — it is the saturation that carries it, not the brightness: a
+wide soft halo, a tighter warm band, then the crisp rule. The row makes its own
+stacking context so the rule passes *behind* the number rather than striking
+through it.
+
+It stops flush with the glass on the right and, on the left, at the tank's own
+brick wall — tank-local x117.8, measured off `water-tank-empty.png`, which is
+row-relative −30.8 since a row starts at x148.6. Any further and it hangs in
+mid-air outside the tank. All of it is in the `.lvRow.correctGlow` block in
+style.css.
+
+## Holding a screen
+
+The screen editor can freeze the flow while the scene keeps running: the water,
+river, rain, pipes and character carry on exactly as they are and the marker
+still drags, but the flow controller stops — no auto-advance, no inactivity
+prompt, no chapter wipe. Anything the game wanted to do while held is
+remembered and happens the moment it is released; a deliberate tap on
+**Continue** is never held back.
+
+| Control | Does |
+| --- | --- |
+| **⏸ Hold screen** in the editor, or **P** | freeze / release. A **SCREEN HELD** badge sits across the top so it is impossible to forget |
+| **◀** / **▶**, or **[** / **]** | step to the previous / next screen by hand, landing with no long travel |
+| **↻** | replay the screen you are on |
+
+The hold survives a reload, because laying a screen out means reloading a lot.
+It is stored under `podb.hold.v1` and only the editor ever sets it — deleting
+editor.js leaves `Game.hold` false forever and the game behaves as before.
+
+## Two things wrong in the artwork
+
+Both are in the assets, not in the code, and both have a stopgap in place.
+
+**`guddu-point.png` is clipped.** Its opaque content runs to x0 of a 1024-wide
+canvas — the pointing hand is missing pixels, not mispositioned, and nothing in
+CSS can recover them (`object-fit` is `contain`, which never crops). Until it is
+re-exported with the hand inside the frame, `POSE_SUB` in game.js falls `point`
+back to `talk`, the same leftward presenting gesture with an intact hand. Empty
+that map and `point` comes back by itself.
+
+**Both button pills are drawn off-centre inside their own canvas.**
+
+| File | Canvas | Pill | Pill centre |
+| --- | --- | --- | --- |
+| `button-pill-orange.png` | 1684×634 | x8..1627 y10..510 | 48.55% 41.01% |
+| `button-pill-blue.png` | 1617×604 | x3..1612 y104..600 | 49.94% 58.28% |
+
+`background-size` is `100% 100%`, so a label centred in the *button box* lands
+off-centre on the *pill* — right and low on orange, high on blue. The labels are
+pinned to those fractions instead, which hold at any button size. Re-export the
+pills centred and the two rules collapse back to `50% 50%`.
+
+## Compliance tally
+
+Checked against data.js and the transcription above; the source CSV is **not in
+this repo**, so the wording of individual lines could not be re-verified against
+it — only the structure, the arithmetic and the internal consistency.
+
+| Check | Result |
+| --- | --- |
+| Screen count | 22 — 8 / 7 / 7 across the three chapters |
+| VO on every screen | pass |
+| Correct-answer line on every `move` screen | pass |
+| Three escalating wrong-answer tiers, each with `vo` **and** `anim` | pass, all 15 |
+| Inactivity prompt on every `move` screen | pass, all 15 |
+| Equation targets derived, never hand-written | pass |
+| Every level inside the ±5 gauge | pass |
+| The documented ±6 retarget keeps its movement deltas | pass — rise 3, fall 3, fall 4 |
+| Cutscene animation agrees with its narration | pass (see below) |
+
+**One contradiction was found and fixed.** `g-intro` ran `start:-5 → to:0` with
+`weather:'drain'`, so the outflow played while the water climbed five levels,
+under a line that says the villagers used water and the level came down. Chapter
+2 ends at −5 and chapter 3 opens at 0, so the climb is real — it now happens
+behind the flood wipe, where nothing is visible, and the cutscene plays the same
+dip-and-settle the two chapter-1 drain screens use. What is shown now agrees
+with what is said.
+
+**Two things left alone, both noted rather than changed:**
+
+* Seven screens open at a level the previous screen did not leave the water on,
+  the largest being +5 → −2 and −3 → +4. `show()` tweens across silently. The
+  arithmetic is unaffected; the tank's continuous history is not.
+* `resetAfter` is set on two screens and read nowhere in game.js.
 
 ## Files
 ```

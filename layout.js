@@ -31,7 +31,29 @@ window.LAYOUT = {
   },
 
   poses: {
-    /* e.g.  think: { flip:true },  */
+    /* The tank is on his left, so every pose has to read leftward. These four
+       were drawn facing the other way — he was talking, thinking, waiting and
+       worrying at the empty half of the screen. Mirrored, he does all four at
+       the water.
+
+       `talk` is the one that matters most: it is the narration pose on every
+       ungifted "move" screen, nine of them, so it is on screen for most of
+       the game. It was recorded in the editor as a flip on l1-find0, which is
+       where it was spotted; it belongs here instead, because the fault is in
+       the pose and not in that screen. Note that a screen-level flip XORs
+       with a pose-level one, so leaving it on l1-find0 would also have
+       cancelled the `idle` mirror on that one screen.
+
+       `surprised` and `cheer` were turned away too. `surprised` is the pose
+       on a third wrong answer, one beat before `think`, which is where it
+       shows. point / neutral / happy already face the tank and are the only
+       three left alone. */
+    talk:      { flip: true },
+    think:     { flip: true },
+    idle:      { flip: true },
+    worried:   { flip: true },
+    surprised: { flip: true },
+    cheer:     { flip: true }
   },
 
   screens: {

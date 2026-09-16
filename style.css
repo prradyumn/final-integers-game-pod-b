@@ -247,10 +247,15 @@ html,body{
 }
 #tankArt { position:absolute; left:0; top:0; width:714px; height:1084px; pointer-events:none; }
 
-#pipeIn { position:absolute; left:-93px; top:-173px; width:352px; height:264px;
+/* z-index 3 puts both pipes ABOVE their flow layers (#flowIn is 3 and comes
+   first in the tree, #flowOut is 2) and below #pipeFx (5) and the valves (6).
+   Without it the water column is painted over the pipe and reads as falling
+   from somewhere above it; with it the column starts inside the bore, the
+   metal hides its top, and the stream emerges at the lip. */
+#pipeIn { position:absolute; left:-93px; top:-173px; width:352px; height:264px; z-index:3;
           object-fit:contain; pointer-events:none;
           filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)); }
-#pipeOut{ position:absolute; left:534px;  top:814px;  width:224px; height:168px;
+#pipeOut{ position:absolute; left:534px;  top:814px;  width:224px; height:168px; z-index:3;
           object-fit:contain; pointer-events:none;
           filter:drop-shadow(0 6px 10px rgba(0,0,0,.22)); }
 
@@ -288,22 +293,187 @@ html,body{
 }
 @keyframes lvStep{ 0%{ background:rgba(255,255,255,.7) } 100%{ background:rgba(255,255,255,0) } }
 
+/* ── the answer line ───────────────────────────────────────────────────
+   Where the marker came to rest, once the screen is solved. A gold rule
+   opens out from the centre of the row and runs wider than the row itself,
+   so it wraps the tick, the number and the marker as one object; a shine
+   travels along it twice; then it settles into a slow breath and stays put
+   until the screen changes.
+
+   Three layers, because one gold bar washes out over pale glass and gets
+   lost over blue water — it is the saturation that carries it, not the
+   brightness:  a wide soft halo, a tighter warm band, the crisp rule.
+   The band is the tick element itself, re-proportioned: the rule covers
+   the tick completely anyway, so it is free to be the middle layer.
+
+   The row makes its own stacking context (z-index 4 puts it over the water
+   and the inflow column, under the pipes and the marker), so inside it the
+   order is halo 0 · band 0 · rule 1 · number 2 — the rule passes behind the
+   number instead of striking through it. */
+.lvRow.correctGlow{ z-index:4; }
+
+.lvRow.correctGlow::before,
+.lvRow.correctGlow::after{
+  content:""; position:absolute; pointer-events:none;
+  top:50%; transform-origin:50% 50%;
+}
+
+/* 1 · the halo that surrounds the line */
+.lvRow.correctGlow::before{
+  z-index:0; left:-25px; right:-6px; height:62px; margin-top:-31px;
+  border-radius:31px;
+  background:radial-gradient(54% 128% at 50% 50%,
+    rgba(255,236,150,.95) 0%, rgba(255,198,48,.80) 30%,
+    rgba(255,160,10,.42) 58%, rgba(255,140,0,0) 80%);
+  filter:blur(6px);
+  animation:ansOpen .6s cubic-bezier(.16,1,.3,1) both,
+            ansBreathe 2.8s .6s ease-in-out infinite;
+}
+
+/* 2 · the warm band — the tick element, re-proportioned */
+.lvRow.correctGlow .lvTick{
+  z-index:0; left:-31px; right:0; width:auto;
+  top:50%; height:30px; margin-top:-15px; border-radius:15px;
+  background:linear-gradient(180deg,
+    rgba(255,222,110,.34), rgba(255,178,20,.55) 50%, rgba(255,222,110,.34));
+  box-shadow:none;
+  transform-origin:50% 50%;
+  animation:ansOpen .6s .04s cubic-bezier(.16,1,.3,1) both;
+}
+
+/* 3 · the rule. It stops flush with the glass on the right and, on the left,
+       at the tank's own brick wall — tank-local x117.8, measured off
+       water-tank-empty.png, which is row-relative −30.8 since a row starts at
+       x148.6. Any further and it hangs in mid-air outside the tank. That puts
+       its left end just inside the marker, so the marker sits on the line
+       rather than the line sticking out behind it. The dark underside is what
+       keeps it from dissolving into the pale top of the tank. */
+.lvRow.correctGlow::after{
+  z-index:1; left:-31px; right:0; height:11px; margin-top:-5.5px;
+  border-radius:6px;
+  background-image:
+    linear-gradient(90deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.95) 50%, rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, #c96500 0%, #ff9f0a 22%, #ffe9a8 46%,
+                            #fffdf4 54%, #ffb31f 78%, #cf6a00 100%);
+  background-size:240% 100%, 100% 100%;
+  background-position:190% 0, 0 0;
+  background-repeat:no-repeat;
+  box-shadow:0 1px 3px rgba(120,55,0,.45),
+             0 0 12px rgba(255,170,25,.95), 0 0 32px rgba(255,140,0,.55);
+  animation:ansOpen .6s cubic-bezier(.16,1,.3,1) both,
+            ansShine 1.45s .38s ease-out 2;
+}
+
+/* the number rides on top of it all and picks up the warmth */
+.lvRow.correctGlow .lvLabel{
+  z-index:2; color:#3d1d00;
+  text-shadow:0 0 18px rgba(255,246,196,1), 0 0 7px rgba(255,222,120,.95),
+              0 1px 0 rgba(255,255,255,.65);
+  animation:ansPop .55s .16s cubic-bezier(.2,1.7,.4,1) both;
+}
+
+@keyframes ansOpen{
+  from{ opacity:0; transform:scaleX(.16) }
+  55% { opacity:1 }
+  to  { opacity:1; transform:scaleX(1) }
+}
+@keyframes ansBreathe{
+  0%,100%{ opacity:.86; transform:scaleY(.95) }
+  50%    { opacity:1;   transform:scaleY(1.07) }
+}
+@keyframes ansShine{
+  from{ background-position:-150% 0, 0 0 }
+  to  { background-position: 250% 0, 0 0 }
+}
+@keyframes ansPop{ 0%{ transform:scale(1) } 45%{ transform:scale(1.2) } 100%{ transform:scale(1) } }
+
+/* the marker joins in, so the line and the thing that set it read as one */
+#marker.correct{ animation:mkCorrect 2.6s ease-in-out infinite; }
+@keyframes mkCorrect{
+  0%,100%{ filter:drop-shadow(0 5px 8px rgba(0,0,0,.35)) drop-shadow(0 0 10px rgba(255,196,40,.6)) }
+  50%    { filter:drop-shadow(0 5px 8px rgba(0,0,0,.35)) drop-shadow(0 0 26px rgba(255,216,100,.98)) }
+}
+
 /* ── draggable marker (x318 → tank-local 115) ─────────────────────────── */
 #marker{
   position:absolute; left:115px; width:88px; height:79px; margin-top:-39.5px;
   cursor:grab; touch-action:none; z-index:6;
   filter:drop-shadow(0 5px 8px rgba(0,0,0,.35));
-  transition:filter .15s ease;
+  /* the tick-to-tick snap is eased rather than jumped, so the marker reads
+     as magnetic instead of twitchy. show() overrides this inline for the
+     long travel between screens and then hands it back. */
+  transition:filter .15s ease, top .14s cubic-bezier(.22,.8,.26,1);
 }
+#marker.drag{ transition:filter .15s ease, top .08s linear; }
 #marker::before{                       /* generous grab area, invisible */
   content:""; position:absolute; left:-26px; top:-26px; right:-40px; bottom:-26px;
 }
 #marker.drag{ filter:drop-shadow(0 7px 14px rgba(0,0,0,.45)) brightness(1.06); }
-#marker.hintGlow{ animation:mkGlow 1.4s ease-in-out infinite; }
+/* it breathes as well as glows, because a thing that changes size reads as
+   grabbable and a thing that only changes colour reads as decoration. The
+   `scale` property is used rather than `transform` so it never fights the
+   flip the layout record can put on this element. It runs until the learner
+   touches the marker, not for a fixed few seconds. */
+#marker.hintGlow{ animation:mkGlow 1.5s ease-in-out infinite; }
 @keyframes mkGlow{
-  0%,100%{ filter:drop-shadow(0 5px 8px rgba(0,0,0,.35)) }
-  50%    { filter:drop-shadow(0 0 16px rgba(255,235,90,.95)) }
+  0%,100%{ scale:1;    filter:drop-shadow(0 5px 8px rgba(0,0,0,.35)) }
+  50%    { scale:1.07; filter:drop-shadow(0 4px 9px rgba(0,0,0,.30))
+                              drop-shadow(0 0 18px rgba(255,235,90,.95)) }
 }
+
+/* ── the ghost nudge ───────────────────────────────────────────────────
+   A see-through marker with a hand on it, pressed, dragged a short way and
+   released, on a loop. It sits just above the real marker so the two read
+   as the same object, and it is pointer-transparent so it can never get in
+   the way of the gesture it is demonstrating. */
+#ghost{
+  position:absolute; left:115px; width:88px; height:79px; margin-top:-39.5px;
+  pointer-events:none; z-index:7; opacity:0;
+}
+#ghost .ghostMarker{
+  width:100%; height:100%; display:block; opacity:.62;
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.3));
+}
+/* The artwork is 1355×1160 with a pair of blue motion arcs off to the upper
+   right of the fingertip. Those arcs read as sideways movement and this drag
+   is vertical, so the image is used as a background and cropped to the hand
+   alone — source rect 300,220 645×860. At 130px wide that is a scale of
+   0.2016: background-size 1355×1160 × 0.2016, offset by −300,−220 × 0.2016.
+
+   Mirrored, because the marker rides the left wall of the tank: drawn as
+   supplied the hand comes from the lower left and buries itself in the
+   brickwork, and the only room is over the water. The mirror is taken about
+   transform-origin, which is set to the fingertip (82%, 7.5% into the crop)
+   — so the finger stays exactly where it is pointing and only the arm
+   swings across. The press scales about that same point, and uses the
+   `scale` property so it never collides with the mirror. */
+#ghostHand{
+  position:absolute; left:-45px; top:27px; width:130px; height:173px;
+  background:url("assets/img/hand-nudge.png") no-repeat;
+  background-size:273.1px 233.8px;
+  background-position:-60.5px -44.3px;
+  /* two shadows: a tight one to cut it off the water, a soft one for weight */
+  filter:drop-shadow(0 2px 2px rgba(10,40,70,.5)) drop-shadow(0 9px 12px rgba(0,0,0,.35));
+  transform-origin:82% 7.5%;
+  transform:scaleX(-1);
+}
+#ghost.run{ animation:ghostDrag 3.2s cubic-bezier(.4,0,.2,1) infinite; }
+#ghost.run #ghostHand{ animation:ghostPress 3.2s cubic-bezier(.4,0,.2,1) infinite; }
+
+@keyframes ghostDrag{
+  0%, 6%   { opacity:0; translate:0 0 }
+  15%,26%  { opacity:1; translate:0 0 }
+  60%,74%  { opacity:1; translate:0 var(--gy, 116px) }
+  92%,100% { opacity:0; translate:0 var(--gy, 116px) }
+}
+@keyframes ghostPress{
+  0%, 8%   { scale:1.3;  opacity:.35 }
+  20%      { scale:1;    opacity:1   }
+  26%,74%  { scale:1;    opacity:1   }
+  90%,100% { scale:1.22; opacity:0   }
+}
+
+@media (prefers-reduced-motion: reduce){ #ghost{ display:none; } }
 #marker:active{ cursor:grabbing; }
 #marker img{ width:100%; height:100%; display:block; }
 #marker.nudge{ animation:mkNudge .85s ease-in-out 2; }
@@ -404,11 +574,30 @@ html,body{
 #checkBtn[hidden],#nextBtn[hidden]{ display:none; }
 #checkBtn:hover,#nextBtn:hover{ transform:translateY(-3px) scale(1.02); }
 #checkBtn:active,#nextBtn:active{ transform:translateY(2px) scale(.99); }
+/* Both pill PNGs are drawn off-centre inside their own canvas, so centring
+   the label in the button box lands it off-centre on the pill. Measured
+   opaque bounds:
+
+     button-pill-orange  1684×634  pill x8..1627 y10..510  → centre 48.55% 41.01%
+     button-pill-blue    1617×604  pill x3..1612 y104..600 → centre 49.94% 58.28%
+
+   background-size is 100% 100%, so those fractions hold at any button size.
+   The label is pinned to them instead of to the box. padding-left cancels the
+   trailing gap letter-spacing leaves after the last glyph, which would
+   otherwise pull the text half a space to the left, and the +0.05em cancels
+   the other half of the problem: translate(-50%) centres the LINE box, and a
+   line box carries descender room the capitals do not use, so the ink sits
+   about 0.05em high. Measured on this stack it wants 1.96px at 46px and
+   2.22–3.17px at 38px; 0.05em splits that and, unlike a fixed pixel figure,
+   survives the label changing (Continue → Play again). */
 #checkBtn span,#nextBtn span{
-  display:grid; place-items:center; width:100%; height:100%;
+  position:absolute; left:49.94%; top:58.28%;
+  transform:translate(-50%, calc(-50% + 0.05em));
+  white-space:nowrap; padding-left:.5px;
   font-family:var(--font); font-size:38px; font-weight:800; color:#fff;
   text-shadow:0 3px 4px rgba(0,0,0,.35); letter-spacing:.5px;
 }
+#nextBtn span{ left:48.55%; top:41.01%; }
 #checkBtn:disabled{ filter:grayscale(.55) opacity(.6); cursor:default; transform:none; }
 #checkBtn.ready{ animation:btnReady 1.5s ease-in-out infinite; }
 @keyframes btnReady{
@@ -463,6 +652,7 @@ html,body{
 .gateCard p{ font-size:33px; margin:0 0 42px; opacity:.92; }
 .gateCard small{ display:block; margin-top:32px; font-size:21px; opacity:.7; font-weight:600; }
 #startBtn{
+  position:relative;                      /* the label is pinned to the pill */
   width:340px; height:120px; border:0; padding:0; cursor:pointer; background:transparent;
   background-image:url("assets/img/button-pill-orange.png");
   background-size:100% 100%; background-repeat:no-repeat;
@@ -470,7 +660,9 @@ html,body{
   transition:transform .14s ease;
 }
 #startBtn:hover{ transform:scale(1.04); }
-#startBtn span{ display:grid; place-items:center; width:100%; height:100%;
+#startBtn span{ position:absolute; left:48.55%; top:41.01%;
+                transform:translate(-50%, calc(-50% + 0.05em));
+                white-space:nowrap; padding-left:2px;
                 font-family:var(--font); font-size:46px; font-weight:800; color:#fff;
                 text-shadow:0 3px 5px rgba(0,0,0,.4); letter-spacing:2px; }
 
@@ -573,4 +765,30 @@ html,body{
 
 .edSelected{ outline:2px dashed #ffd479 !important; outline-offset:2px; }
 body.editing #stage{ cursor:move; }
+
+/* ── hold: the flow is frozen, the scene is not ────────────────────────
+   The badge is the only sign of it, so it has to be impossible to miss. */
+body.held #stage::before{
+  content:"SCREEN HELD";
+  position:absolute; left:50%; top:16px; transform:translateX(-50%);
+  z-index:80; pointer-events:none;
+  padding:7px 20px 8px; border-radius:999px;
+  background:rgba(184,121,26,.94); color:#fff;
+  font:800 17px/1 ui-monospace,Menlo,Consolas,monospace; letter-spacing:3px;
+  box-shadow:0 6px 20px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,222,150,.55);
+  animation:heldPulse 2s ease-in-out infinite;
+}
+@keyframes heldPulse{ 0%,100%{ opacity:.78 } 50%{ opacity:1 } }
+
+/* transport row in the editor */
+.edTransport{ display:flex; gap:6px; align-items:stretch; }
+.edTransport button{
+  border:0; border-radius:7px; cursor:pointer; padding:7px 6px;
+  background:#1b355c; color:#dceaff; font:inherit;
+}
+.edTransport button:hover{ background:#27497c; }
+#edHold{ flex:1; font-weight:700; }
+#edHold.on{ background:#b8791a; color:#fff; }
+#edHold.on:hover{ background:#d18d20; }
+#edPrev,#edNext,#edReplay{ width:34px; flex:0 0 auto; }
 /* ═══════════ end EDITOR ═══════════════════════════════════════════════ */

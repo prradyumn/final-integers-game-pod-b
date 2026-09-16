@@ -225,9 +225,16 @@ const FLOW = [
 
   /* ─────────────────── TRANSITION — water is used up ─────────────────────── */
   {
+    /* Chapter 2 ends at −5 and chapter 3 opens at 0, so the water has to get
+       back up — but the VO here says the villagers USED water and the level
+       came down. Animating the rise with the outflow running said the exact
+       opposite of the line. The climb now happens behind the flood wipe
+       (snapTo sets the level before anything is visible) and the cutscene
+       plays the same dip-and-settle the two chapter-1 drain screens use, so
+       what is shown agrees with what is said. */
     id: 'g-intro', chapter: 3, chapterName: 'Water Used Up',
     screen: 'Transition', type: 'observe',
-    start: -5, to: 0, weather: 'drain',
+    start: 0, to: 0, weather: 'drain',
     speaker: 'guddu',
     vo: 'The villagers have used some of the stored water, so the water level has decreased.',
     hint: 'Now the number sentences will use a minus sign.'

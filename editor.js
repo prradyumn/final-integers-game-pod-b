@@ -33,7 +33,10 @@ const OBJECTS = [
 ];
 const POSE_LIST = ['(leave to the game)','talk','point','happy','cheer','worried',
                    'surprised','think','idle','neutral'];
-const KEY = 'podb.layout.v1';
+/* Bumped whenever layout.js changes underneath a saved session: restore()
+   would otherwise keep replaying a stale record out of localStorage and the
+   new baked-in placements would never show. */
+const KEY = 'podb.layout.v2';
 
 const $  = s => document.querySelector(s);
 const L  = () => window.LAYOUT;
@@ -81,6 +84,12 @@ panel.innerHTML = `
     <span id="edScreen"></span>
     <button id="edClose" title="Close (E)">✕</button>
   </header>
+  <div class="edTransport">
+    <button id="edHold" title="Freeze the flow (P)">&#x23F8; Hold screen</button>
+    <button id="edPrev"   title="Previous screen ([)">&#x25C0;</button>
+    <button id="edReplay" title="Replay this screen">&#x21BB;</button>
+    <button id="edNext"   title="Next screen (])">&#x25B6;</button>
+  </div>
   <label class="edRow"><span>Object</span>
     <select id="edObj">${OBJECTS.map(o=>`<option value="${o.key}">${o.label}</option>`).join('')}</select>
   </label>
@@ -128,6 +137,43 @@ document.body.appendChild(tab);
 const el = k => document.querySelector((OBJECTS.find(o=>o.key===k)||{}).sel);
 const g  = id => document.getElementById(id);
 
+/* ── hold ──────────────────────────────────────────────────────────────
+   The flow controller stops — no auto-advance, no inactivity prompt, no
+   chapter wipe — while the water, river, rain, pipes and character carry on
+   and the marker still drags. That is what makes a screen sit still long
+   enough to position anything on it. Continue still works if you tap it.
+   The state survives a reload, because laying a screen out means reloading
+   a lot; the badge across the top says so in case you forget.            */
+const HOLDKEY = 'podb.hold.v1';
+const GAME = () => window.__GAME;
+
+function syncHold(){
+  const on = !!(GAME() && GAME().hold);
+  const b = g('edHold'); if (!b) return;
+  b.classList.toggle('on', on);
+  b.innerHTML = on ? '&#x25B6; Resume flow' : '&#x23F8; Hold screen';
+}
+function setHold(on){
+  const G = GAME(); if (!G) return;
+  G.setHold(on);
+  try { localStorage.setItem(HOLDKEY, G.hold ? '1' : '0'); } catch(_){}
+  syncHold();
+}
+/* game.js loads first, so __GAME is there long before Start is pressed --
+   restoring the hold now means screen 1 never runs away either */
+let holdRestored = false;
+function restoreHold(){
+  if (holdRestored) return;
+  const G = GAME(); if (!G) return;
+  holdRestored = true;
+  let want = false;
+  try { want = localStorage.getItem(HOLDKEY) === '1'; } catch(_){}
+  if (want) G.setHold(true);
+  syncHold();
+}
+
+function goTo(i){ const G = GAME(); if (G) { G.goTo(i); syncForm(); } }
+
 /* ── read the live box of an object, in stage coordinates ─────────────── */
 function liveBox(key){
   const e = el(key); if (!e) return null;
@@ -167,6 +213,7 @@ function syncForm(){
     const p = window.__GAME && window.__GAME.__poseNow;
     g('edPoseFlip').checked = !!(L().poses[p] && L().poses[p].flip);
   }
+  syncHold();
   outline();
   g('edJson').value = toJSON();
 }
@@ -193,6 +240,11 @@ function toJSON(){
 }
 
 /* ── wiring ───────────────────────────────────────────────────────────── */
+g('edHold')  .addEventListener('click', () => setHold(!(GAME() && GAME().hold)));
+g('edPrev')  .addEventListener('click', () => { const G = GAME(); if (G) goTo(G.i - 1); });
+g('edNext')  .addEventListener('click', () => { const G = GAME(); if (G) goTo(G.i + 1); });
+g('edReplay').addEventListener('click', () => { const G = GAME(); if (G) goTo(G.i); });
+
 g('edObj').addEventListener('change', e => { sel = e.target.value; syncForm(); });
 document.querySelectorAll('input[name=edScope]').forEach(r =>
   r.addEventListener('change', e => { scope = e.target.value; syncForm(); }));
@@ -293,10 +345,23 @@ window.addEventListener('pointermove', e => {
 });
 window.addEventListener('pointerup', () => { if (drag){ drag=null; syncForm(); } });
 
+const typing = () => document.activeElement &&
+  /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+
 window.addEventListener('keydown', e => {
   if (e.key === 'e' || e.key === 'E'){
-    if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if (typing()) return;
     toggle(); return;
+  }
+  /* the transport works whether or not the panel is open */
+  if (e.key === 'p' || e.key === 'P'){
+    if (typing()) return;
+    setHold(!(GAME() && GAME().hold)); e.preventDefault(); return;
+  }
+  if (e.key === '[' || e.key === ']'){
+    if (typing()) return;
+    const G = GAME(); if (!G) return;
+    goTo(G.i + (e.key === ']' ? 1 : -1)); e.preventDefault(); return;
   }
   if (!open || !sel) return;
   if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
@@ -320,7 +385,12 @@ function toggle(force){
 }
 
 /* keep the readout honest as the game moves between screens */
-setInterval(() => { if (open) { g('edScreen').textContent =
-  scope==='global' ? 'all screens' : screenId(); } }, 400);
+setInterval(() => {
+  restoreHold();
+  if (!open) return;
+  g('edScreen').textContent = scope === 'global' ? 'all screens' : screenId();
+  syncHold();
+}, 400);
+restoreHold();
 
 })();
