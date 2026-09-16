@@ -108,6 +108,15 @@ All SVG, no sprites.
 * **Valve wheels** on both pipes spin while water runs, and the pipe itself
   lights up. Cyan dashes travel inside the pipe body so the direction is
   readable at a glance. During hints the pipe that matters pulses gold.
+* **The water comes out of the pipes, not over them.** Both pipes sit at
+  `z-index:3`, above their flow layers (`#flowIn` is 3 and earlier in the tree,
+  `#flowOut` is 2), and the stream origins are the *centroid of the bore* rather
+  than the lip — inlet 205,58 and outlet 718,945, measured off the artwork. The
+  metal hides the top of the column so it emerges from the opening. The
+  `#pipeFx` chevrons trace the bore's real centreline, which runs to negative
+  x/y on the inlet and past x714 on the outlet, so that svg carries
+  `overflow:visible`. Get any of those three wrong and the stream reads as a
+  strip laid over the pipe instead of water inside it.
 * **Idle drip** from the spout every ~6 s, so the inlet reads as a water source
   before anyone touches anything.
 
@@ -387,6 +396,44 @@ with what is said.
   the largest being +5 → −2 and −3 → +4. `show()` tweens across silently. The
   arithmetic is unaffected; the tank's continuous history is not.
 * `resetAfter` is set on two screens and read nowhere in game.js.
+
+## Two leaks that were fixed
+
+**The pipes kept running after the flow changed direction.** `Flow.want()`
+started the new side without ever closing the old one, and `Flow.tick()` only
+ever cleaned up whichever direction was *current* — so the moment a drag
+changed direction, the side it left behind kept its pipe glow, its spinning
+valve, its in-pipe dashes and its audio loop, permanently. There is now a
+`Flow.close(dir)` that shuts one side down completely; `want()` calls it on
+every change of direction, and `tick()` calls it when a tail finishes.
+
+Verified with real timers: drag up, switch to down, settle — the inlet closes
+the instant the direction changes and everything reaches `dir:null phase:off`.
+
+Two smaller ones alongside it: `Flood.wipe()` set `Audio_.want('fill', true)`
+and never cleared it, so `resumeLoops()` restarted the fill loop on the next
+tab switch with nothing pouring; and the idle spout drip now only runs on a
+question the learner has not answered yet, because after the answer is in the
+same drip reads as a leak rather than as ambience.
+
+## Where the speech bubble sits
+
+Figma puts it at 1222,101. That frame had a single character still at
+1563,328 424×637; the nine-pose box is registered differently (1550,266
+450×675) and the poses that raise an arm reach further up, so the balloon's
+tail was landing in his hair — and on `cheer`, straight through his raised
+fist. Measured overlap of opaque pixels at the Figma rect:
+
+| pose | overlapping px | | pose | overlapping px |
+| --- | --- | --- | --- | --- |
+| think | 1668 | | neutral | 1052 |
+| happy | 1432 | | worried | 792 |
+| idle | 1140 | | cheer | 756 |
+| point | 500 | | talk / surprised | clear |
+
+**1170,49** is the nearest position that clears all nine poses with 12px to
+spare while keeping the tail pointing down-right at his head. `#bubbleText` is
+a child of `#bubble`, so it rides along.
 
 ## Files
 ```

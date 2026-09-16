@@ -230,10 +230,24 @@
       <img id="pipeIn"  src="assets/img/pipe-inlet-s-bend.png"  alt="">
       <img id="pipeOut" src="assets/img/pipe-outlet-elbow.png" alt="">
 
-      <!-- water travelling inside the pipe bodies -->
+      <!-- Water travelling inside the pipe bodies. Both paths trace the bore's
+           real centreline, measured off the pipe artwork in tank-local px:
+
+             inlet   riser x−25 (y−158..−45) · horizontal y−7 (x30..160)
+                     · spout x206 (y38..78, mouth centroid 205,58)
+             outlet  horizontal y881 (x560..670) · mouth x717 (y930..948,
+                     mouth centroid 718,945)
+
+           The viewBox is 1:1 with tank-local px, and parts of both pipes sit
+           outside 0..714 — the inlet riser is at negative x and y, the outlet
+           mouth past x714 — so this svg must not clip. Drawn at z-index 5,
+           over the pipe metal, because the point is to read as water seen
+           through the pipe. -->
       <svg id="pipeFx" viewBox="0 0 714 1084" preserveAspectRatio="none" aria-hidden="true">
-        <path id="chevIn"  class="chev" d="M0,22 L152,22 Q202,22 206,56 L208,74" opacity="0"></path>
-        <path id="chevOut" class="chev" d="M600,852 L606,892 Q614,922 668,932 L728,936"   opacity="0"></path>
+        <path id="chevIn"  class="chev" opacity="0"
+              d="M-25,-156 L-25,-46 Q-25,-7 26,-7 L162,-7 Q206,-7 206,40 L206,74"></path>
+        <path id="chevOut" class="chev" opacity="0"
+              d="M552,881 L668,881 Q713,881 717,930 L718,944"></path>
       </svg>
 
       <!-- valve wheels: coded stand-ins, swap for valve-wheel.png when the art lands -->

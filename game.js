@@ -550,18 +550,41 @@ const Flow = {
   setIn (on){ on ? this.want('in')  : (this.dir === 'in'  && this.want(null)); },
   setOut(on){ on ? this.want('out') : (this.dir === 'out' && this.want(null)); },
 
+  /* Shut one side down completely: pipe glow, valve spin, in-pipe dashes and
+     its audio loop. tick() used to do this inline, and only ever for the
+     direction that was current — so switching straight from 'in' to 'out'
+     (which a drag does the moment it changes direction) started the new side
+     without ever closing the old one, and the inlet stayed lit with its
+     dashes running and its loop still wanted, for good. */
+  close(d){
+    if (!d) return;
+    const key = d === 'in' ? 'fill' : 'drain';
+    Audio_.want(key, false);
+    Audio_.fadeStop(key, 420);
+    (d === 'in' ? pipeIn : pipeOut).classList.remove('active');
+    (d === 'in' ? valveIn : valveOut).classList.remove('spin', 'lit');
+    (d === 'in' ? chevIn : chevOut).setAttribute('opacity', '0');
+  },
+
   want(dir){
-    if (dir === this.dir) return;
+    /* a side that is already closing may be asked for again — that has to
+       restart it, not be swallowed as "no change" */
+    if (dir === this.dir && this.phase !== 'tail') return;
     if (dir){
+      if (this.dir && this.dir !== dir) this.close(this.dir);
+      const restarting = this.dir === dir;
       this.dir = dir; this.phase = 'lead'; this.phaseT = 0;
-      for (let i = 0; i < 3; i++) setTimeout(() => this.drip(dir), i * 70);
-      Audio_.blip('valve');
+      if (!restarting){
+        for (let i = 0; i < 3; i++) setTimeout(() => this.drip(dir), i * 70);
+        Audio_.blip('valve');
+      }
       const key = dir === 'in' ? 'fill' : 'drain';
       Audio_.want(key, true); Audio_.fadeIn(key, 320);
       (dir === 'in' ? pipeIn : pipeOut).classList.add('active');
       (dir === 'in' ? valveIn : valveOut).classList.add('spin', 'lit');
       (dir === 'in' ? chevIn : chevOut).setAttribute('opacity', '1');
     } else if (this.dir){
+      if (this.phase === 'tail') return;       // already closing; don't restart it
       this.phase = 'tail'; this.phaseT = 0;
       const d = this.dir;
       Audio_.want(d === 'in' ? 'fill' : 'drain', false);
@@ -612,9 +635,7 @@ const Flow = {
       if (this.phaseT > 320){
         this.phase = 'off';
         const d = this.dir; this.dir = null;
-        (d === 'in' ? pipeIn : pipeOut).classList.remove('active');
-        (d === 'in' ? valveIn : valveOut).classList.remove('spin', 'lit');
-        (d === 'in' ? chevIn : chevOut).setAttribute('opacity', '0');
+        this.close(d);
       }
     }
     this.vis += (want - this.vis) * Math.min(1, dt / 90);
@@ -626,9 +647,13 @@ const Flow = {
       if (this._ringT > 260){ this._ringT = 0; Water.spawnRing(); }
     }
 
-    /* a lonely drip from the spout when nothing is happening */
+    /* A lonely drip from the spout when nothing is happening — but only on a
+       question the learner has not answered yet. Once the answer is in, or on
+       a cutscene or the finish screen, the same drip stops reading as "this
+       is a water source" and starts reading as a leak. */
     this.idleT += dt;
-    if (!this.dir && this.idleT > 6000){ this.idleT = 0; this.drip('in'); }
+    const mayDrip = !Game.solved && Game.step && Game.step.type === 'move';
+    if (!this.dir && mayDrip && this.idleT > 6000){ this.idleT = 0; this.drip('in'); }
     if (this.dir) this.idleT = 0;
 
     this.drawIn();
@@ -1016,6 +1041,7 @@ const Flood = {
     Audio_.want('fill', true); Audio_.fadeIn('fill', 260);
 
     await this.ramp(0, 1, 1150, 'easeIn');     // the river climbs
+    Audio_.want('fill', false);               // or resumeLoops() brings it back
     Audio_.fadeStop('fill', 300);
     Flow.splashBurst && Flow.splashBurst();
     await wait(260);
@@ -1168,6 +1194,7 @@ const Game = {
     this.interactive = false;
     this.touched = false; Ghost.stop();
     this.heldAuto = 0; this.heldNext = false;
+    Flow.want(null);                          // never inherit a running pipe
     clearTimeout(this.idleTimer); clearTimeout(this.autoTimer); clearHints();
     tankEl.classList.add('locked');
     checkBtn.hidden = true; nextBtn.hidden = true;
@@ -1553,6 +1580,7 @@ $('#startBtn').addEventListener('click', () => {
 
 window.__GAME = Game;
 window.__FLOW = Flow;
+window.__AUDIO = Audio_;
 
 /* the layout record is re-applied continuously so edits land at once */
 setInterval(applyLayout, 250);
