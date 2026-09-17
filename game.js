@@ -30,10 +30,14 @@ const BEAT         = 700;
 /* How long the game waits before moving on by itself. A cutscene has nothing
    to decide, so it just goes. After a correct answer it waits longer, because
    the completed number sentence IS the teaching moment and yanking it away
-   would waste it — but it still goes, so the learner never has to tap to be
-   told they were right. */
+   would waste it.
+   This used to be 2900 with a Continue button beside it for anyone who wanted
+   to move sooner. There is no button now, so the wait is the only option there
+   is and it has to be one nobody wants out of. */
 const AUTO_OBSERVE = 1100;
-const AUTO_CORRECT = 2900;
+/* how long the marker must sit still before resting there counts as an answer */
+const COMMIT_MS    = 900;
+const AUTO_CORRECT = 2200;
 
 /* ───────────────────────────── dom ──────────────────────────────────── */
 const $  = s => document.querySelector(s);
@@ -72,12 +76,13 @@ const bubbleEl = $('#bubble');
 const bubbleTx = $('#bubbleText');
 const eqPanel  = $('#eqPanel');
 const eqA = $('#eqA'), eqOp = $('#eqOp'), eqB = $('#eqB'), eqR = $('#eqR');
+const eqABox = $('#eqABox'), eqBBox = $('#eqBBox'), eqRBox = $('#eqRBox');
+const eqEq   = $('#eqEq');
 const eqPips  = $('#eqPips');
 const eqRoles = $('#eqRoles');
 const tilesEl = $('#answerTiles');
 const surfRing = $('#surfRing');
-const checkBtn = $('#checkBtn');
-const nextBtn  = $('#nextBtn');
+const nextBtn  = $('#nextBtn');   // the finish screen's Play again, nothing else
 const chapterName = $('#chapterName');
 const stepTag  = $('#stepTag');
 const gate     = $('#gate');
@@ -265,14 +270,34 @@ const VO = {
     Guddu.talk(false);
   },
 
-  speak(text, speaker = 'guddu'){
+  /* `onProgress` is called with 0..1 as the line is spoken. It is what keeps
+     the number sentence in step with the voice: estimating the duration from
+     the character count cannot work, because the rate depends on the engine,
+     the platform and which voice got picked, and it was visibly out. */
+  speak(text, speaker = 'guddu', onProgress = null){
     const who = Guddu;
     return new Promise(resolve => {
       this.cancel();
+      let done = false;
+      const report = p => {
+        if (!onProgress || done) return;
+        try { onProgress(Math.max(0, Math.min(1, p))); } catch(_){}
+      };
+      const settle = () => { if (onProgress) { try { onProgress(1); } catch(_){} } };
+
+      /* Muted, or no engine at all: the line still occupies a span of time,
+         so progress comes off that and the sentence still builds in step. */
       if (Audio_.muted || !this.supported){
         who.talk(true);
         const ms = Math.max(1600, text.length * 62);
-        setTimeout(() => { who.talk(false); resolve(); }, ms);
+        const t0 = performance.now();
+        const tick = () => {
+          if (done) return;
+          report((performance.now() - t0) / ms);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        setTimeout(() => { settle(); done = true; who.talk(false); resolve(); }, ms);
         return;
       }
       const u = new SpeechSynthesisUtterance(speakable(text));
@@ -281,13 +306,36 @@ const VO = {
       u.rate  = 0.84;                       // slow and clear, on purpose
       u.pitch = speaker === 'pari' ? 1.18 : 0.96;
       u.volume= 1;
-      let done = false;
+      /* Word boundaries are the real clock: the engine says how far into the
+         text it has got, whatever rate it is running at. Not every engine
+         emits them, so if none has arrived shortly after he starts, a timer
+         takes over and the reveal degrades to an even spread. */
+      let heardBoundary = false, fallback = null;
+      const spoken = (u.text || '').length || 1;
+      u.onboundary = e => {
+        heardBoundary = true;
+        if (fallback) { clearInterval(fallback); fallback = null; }
+        report((e.charIndex || 0) / spoken);
+      };
+
       const finish = () => {
-        if (done) return; done = true;
+        if (done) return;
+        clearInterval(fallback); settle(); done = true;
         this.speaking = false; clearInterval(this.keepAlive);
         who.talk(false); resolve();
       };
-      u.onstart = () => { this.speaking = true; who.talk(true); };
+      /* The ticker is armed here rather than in onstart, because onstart is
+         itself not guaranteed: an engine with no voices installed can accept
+         the utterance and emit nothing at all, and the sentence would then
+         sit staged until the line was over and arrive in one lump — exactly
+         what this is meant to stop. onstart only restarts the clock. */
+      const est = Math.max(1600, text.length * 68);
+      let t0 = performance.now();
+      fallback = setInterval(() => {
+        if (done || heardBoundary) return clearInterval(fallback);
+        report((performance.now() - t0) / est);
+      }, 80);
+      u.onstart = () => { this.speaking = true; who.talk(true); t0 = performance.now(); };
       u.onend   = finish;
       u.onerror = finish;
       // Chrome silently stops long utterances unless nudged.
@@ -370,7 +418,7 @@ const Guddu = {
 const LAYOUT_MAP = {
   tank:'#tank', pipeIn:'#pipeIn', pipeOut:'#pipeOut', valveIn:'#valveIn',
   valveOut:'#valveOut', marker:'#marker', guddu:'#guddu', bubble:'#bubble',
-  bubbleText:'#bubbleText', eqPanel:'#eqPanel', checkBtn:'#checkBtn',
+  bubbleText:'#bubbleText', eqPanel:'#eqPanel',
   nextBtn:'#nextBtn', hintBar:'#hintBar', chapterTag:'#chapterTag',
   river:'#river', gauge:'#gauge'
 };
@@ -863,11 +911,49 @@ function buildZeroBand(){
    pin stays put at the start; one arc is drawn per level crossed, with a
    running count beside them. Both are rebuilt from (start, current) on every
    change, so dragging back and forth stays honest.                        */
-/* A hop has to read as a hop. Bulge close to the step height makes each one
-   near-semicircular, and a gap at both ends keeps consecutive arcs from
-   fusing into a single wavy line — which is exactly what a thin arc drawn
-   tick-to-tick looks like. */
-const HOP_X = 326, HOP_BULGE = 50, HOP_GAP = 6;
+/* A hop has to read as a hop, and the old one did not: the bulge was 50
+   against a 51px chord, so each arc came out near-circular, and with round
+   caps and a 6px gap curling both tips inward it closed into a "C". Flat is
+   the fix — a 30 bulge puts the apex about 22px out against the same 51px
+   chord, which is a leap rather than a loop.
+
+   HOP_X stays at 326. Moving the arcs left to sit on the ticks is the obvious
+   idea and it is wrong: the level labels occupy tank-local 238..308, so
+   anything left of ~316 is drawn through the numbers. What actually stops the
+   chain floating in open water is that both ends are now PINNED — a hollow
+   ring where the move began and a filled disc where it landed, each exactly on
+   its level line, which puts them in a row with the start pin and the marker
+   on the far left. The eye can trace across.
+
+   There is no arrowhead any more. The old one was a 22x15 triangle drawn
+   axis-aligned pointing up or down, while the curve it sat on arrives
+   travelling HORIZONTALLY — both control points share their endpoint's y, so
+   the tangent at the end is (-bulge, 0). The arrow and the line it capped
+   disagreed, which is most of why the thing looked wrong. A landing disc is
+   what a number line actually uses, cannot contradict the curve, and the
+   direction is already carried by the count chip's arrow and by the pin. */
+const HOP_X = 326, HOP_BULGE = 36, HOP_GAP = 0;
+/* The trail GROWS toward the landing, not away from it. The landing end is
+   where the learner is now — it follows the marker as they drag — so the
+   weight belongs there, with the filled disc, and the thin end belongs back
+   at the level they left. Thick-to-thin put the emphasis on the past. */
+const HOP_W0 = 6, HOP_W1 = 11;          // ribbon width: takeoff → landing
+const HOP_SEG = 16;                     // samples per arc
+
+/* cubic bezier point and tangent — the ribbon is built by walking the
+   centreline and stepping off it perpendicular, the same construction the
+   outflow jet uses in Flow.drawOut(), and for the same reason: a stroke
+   cannot taper, a filled outline can. */
+const bezAt = (p, t) => {
+  const u = 1 - t;
+  return { x: u*u*u*p[0].x + 3*u*u*t*p[1].x + 3*u*t*t*p[2].x + t*t*t*p[3].x,
+           y: u*u*u*p[0].y + 3*u*u*t*p[1].y + 3*u*t*t*p[2].y + t*t*t*p[3].y };
+};
+const bezTan = (p, t) => {
+  const u = 1 - t;
+  return { x: 3*u*u*(p[1].x-p[0].x) + 6*u*t*(p[2].x-p[1].x) + 3*t*t*(p[3].x-p[2].x),
+           y: 3*u*u*(p[1].y-p[0].y) + 6*u*t*(p[2].y-p[1].y) + 3*t*t*(p[3].y-p[2].y) };
+};
 
 const Hops = {
   from: null,
@@ -893,24 +979,56 @@ const Hops = {
     if (!n){ hopCount.classList.remove('show'); return; }
 
     const dir = to > this.from ? 1 : -1;
+    let ribbon = '', y1First = 0, y2Last = 0;
+
     for (let k = 0; k < n; k++){
       const a = tankYFor(this.from + k * dir);
       const b = tankYFor(this.from + (k + 1) * dir);
-      const y1 = a - HOP_GAP * dir, y2 = b + HOP_GAP * dir;   // leave the gap
-      const d  = `M${HOP_X},${y1.toFixed(1)}`
-               + ` C${HOP_X + HOP_BULGE},${y1.toFixed(1)}`
-               + ` ${HOP_X + HOP_BULGE},${y2.toFixed(1)}`
-               + ` ${HOP_X},${y2.toFixed(1)}`;
-      const g  = mk('g', { class: k === n - 1 ? 'pop' : '' });
-      g.appendChild(mk('path', { class:'halo', d }));
-      g.appendChild(mk('path', { class:'ink',  d }));
-      if (k === n - 1){
-        const t = 15 * dir;
-        g.appendChild(mk('path', { class:'head',
-          d:`M${HOP_X},${(y2 - t * 0.35).toFixed(1)} l11,${t.toFixed(1)} l-22,0 Z` }));
+      const y1 = a - HOP_GAP * dir, y2 = b + HOP_GAP * dir;
+      if (!k) y1First = y1;
+      y2Last = y2;
+
+      const P = [ { x:HOP_X,              y:y1 }, { x:HOP_X + HOP_BULGE, y:y1 },
+                  { x:HOP_X + HOP_BULGE,  y:y2 }, { x:HOP_X,             y:y2 } ];
+
+      /* the taper runs across the WHOLE chain, not per arc, so a four-level
+         move thins steadily from takeoff to landing instead of pulsing */
+      const left = [], right = [];
+      for (let i = 0; i <= HOP_SEG; i++){
+        const t = i / HOP_SEG;
+        const g = (k + t) / n;
+        const w = (HOP_W0 + (HOP_W1 - HOP_W0) * g) / 2;
+        const pt = bezAt(P, t), tan = bezTan(P, t);
+        const L = Math.hypot(tan.x, tan.y) || 1;
+        const nx = -tan.y / L * w, ny = tan.x / L * w;
+        left .push((pt.x + nx).toFixed(1) + ',' + (pt.y + ny).toFixed(1));
+        right.push((pt.x - nx).toFixed(1) + ',' + (pt.y - ny).toFixed(1));
       }
-      hopArcs.appendChild(g);
+      ribbon += 'M' + left.join('L') + 'L' + right.reverse().join('L') + 'Z ';
     }
+
+    hopArcs.appendChild(mk('path', { class:'halo', d: ribbon }));
+    hopArcs.appendChild(mk('path', { class:'ink',  d: ribbon }));
+
+    /* A node on EVERY level the chain touches, sitting exactly on that level's
+       line. This is what stops the thing floating. Textbook number-line hops
+       meet at points on the axis, and those points do two jobs at once: they
+       tie each arc end to a real level, and they break the scallops apart so a
+       chain of shallow same-side arcs reads as separate hops instead of fusing
+       into one long curly brace — which is exactly what it did without them.
+       A stub runs back towards the label so the eye can join the node to the
+       number it belongs to; it starts right of the label box (which ends at
+       308) so it never strikes through the digits. */
+    for (let k = 0; k <= n; k++){
+      const y = tankYFor(this.from + k * dir);
+      hopArcs.appendChild(mk('line', { class:'rung', x1:HOP_X - 34, y1:y.toFixed(1),
+                                                     x2:HOP_X - 5,  y2:y.toFixed(1) }));
+      if (k && k < n)
+        hopArcs.appendChild(mk('circle', { class:'node', cx:HOP_X, cy:y.toFixed(1), r:5 }));
+    }
+    hopArcs.appendChild(mk('circle', { class:'takeoff', cx:HOP_X, cy:y1First.toFixed(1), r:7 }));
+    hopArcs.appendChild(mk('circle', { class:'landing pop', cx:HOP_X, cy:y2Last.toFixed(1), r:8.5 }));
+
     hopN.textContent = n;
     hopDir.textContent = dir > 0 ? '\u25B2' : '\u25BC';
     hopCount.classList.toggle('down', dir < 0);
@@ -1054,6 +1172,7 @@ markerEl.addEventListener('pointerdown', e => {
   if (!Game.interactive) return;
   dragging = true;
   Game.touched = true;                 // the nudges have done their job
+  Game.cancelCommit();                 // picking it up again withdraws the answer
   Ghost.stop();
   markerEl.classList.add('drag');
   markerEl.classList.remove('hintGlow');
@@ -1080,7 +1199,8 @@ markerEl.addEventListener('lostpointercapture', endDrag);
 markerEl.addEventListener('keydown', e => {
   if (!Game.interactive) return;
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
-    Game.touched = true; Ghost.stop(); markerEl.classList.remove('hintGlow');
+    Game.touched = true; Game.cancelCommit();
+    Ghost.stop(); markerEl.classList.remove('hintGlow');
   }
   if (e.key === 'ArrowUp'   || e.key === 'ArrowRight'){ Game.slideTo(Game.level + 1); Game.settle(); Game.poke(); e.preventDefault(); }
   if (e.key === 'ArrowDown' || e.key === 'ArrowLeft' ){ Game.slideTo(Game.level - 1); Game.settle(); Game.poke(); e.preventDefault(); }
@@ -1088,7 +1208,23 @@ markerEl.addEventListener('keydown', e => {
 
 /* ═══════════════════ 8 · equation panel ══════════════════════════════ */
 const fmt  = n => n > 0 ? '+' + n : (n < 0 ? '−' + Math.abs(n) : '0');
-const wrap = n => '(' + fmt(n) + ')';
+
+/* NO BRACKETS. `(−2) + (+4)` is the notation of the sign rules — it asks the
+   learner to resolve a signed quantity against an operator, and "two minuses
+   make a plus" is the lesson it belongs to. That is not this lesson. Here the
+   operator means one thing only: + is up the tank and − is down it.
+
+   So the three boxes are three different kinds of thing, and are written as
+   such — which is what the role labels underneath have always said:
+
+     started at   a LEVEL      signed, exactly as the gauge writes it   −2
+     jumped       a COUNT      unsigned; the operator carries the way    4
+     landed on    a LEVEL      signed again                            +2
+
+   `−2 + 4 = ?` reads as "start at −2, go up 4" and nothing else. Re-introducing
+   a bracket here would put a rule on screen that the tank cannot demonstrate
+   and the game never teaches. See README, "No negative second term". */
+const count = n => String(Math.abs(n));
 
 /* The left-hand side is established the moment the screen opens and never
    changes — the learner is solving the right-hand side, not assembling the
@@ -1098,9 +1234,9 @@ function renderEquation(step, level, solved){
   if (!step.equation){ eqPanel.hidden = eqRoles.hidden = true; return; }
   eqPanel.hidden = eqRoles.hidden = false;
   const { a, op, b } = step.equation;
-  eqA.textContent  = a === 0 ? '0' : wrap(a);
-  eqOp.textContent = op;
-  eqB.textContent  = wrap(b);
+  eqA.textContent  = fmt(a);       // a level, written as the gauge writes it
+  eqOp.textContent = op;           // the direction: + is up, − is down
+  eqB.textContent  = count(b);     // how many levels, not a signed quantity
   /* the answer box now says what the learner CHOSE, not where they happen to
      be standing — the gauge is for working it out, the tile is for saying it */
   eqR.textContent  = solved ? fmt(step.target)
@@ -1162,14 +1298,247 @@ function renderPips(step, jumped){
 }
 
 
+/* ═══════════ 8c · staging the sentence ══════════════════════════════
+   The whole number sentence used to land in one block the moment the screen
+   opened — five boxes and four answer tiles arriving together, while Guddu
+   was still explaining what the screen was even about. Nine new objects
+   competing for attention before a word had been said.
+
+   It is built one term at a time instead, while he talks, in the order the
+   sentence is read: the level he starts from, then what happens to it, then
+   by how much, then the equals and the empty answer box. The tiles are held
+   back until the sentence is finished AND he has stopped talking, so there
+   is only ever one new thing on screen to look at.
+
+   The reveal runs alongside the narration rather than being driven by it:
+   speech-boundary events are not reliable across engines and do not fire at
+   all when the sound is muted, so a fixed cadence is what actually stays in
+   step. Whichever of the two finishes last is what the tiles wait for.    */
+/* Where in the line each term lands, as a fraction of the way through it.
+   Fractions rather than milliseconds is the whole point: the voice sets the
+   pace and these ride on top of it, so a fast engine and a slow one both put
+   the sign on the word that means it. The last one is well short of 1 so the
+   sentence is complete before he stops talking rather than exactly as he
+   does — the trailing clause of most lines is "...find the new water level",
+   which wants to be said over a finished sentence. */
+/* ═══════════ 8d · spring motion ══════════════════════════════════
+   The entry animations are driven here rather than by the CSS keyframes, which
+   stay as the fallback (see body.jsMotion in style.css).
+
+   NO LIBRARY, deliberately. This game is opened by double-clicking index.html:
+   there is no server and no build step, so a CDN <script> would make it need
+   the internet to animate, and an ES-module library cannot be loaded over
+   file:// at all — module scripts are CORS-checked and file:// origins are
+   opaque. The Web Animations API is in every browser this runs on, costs
+   nothing to fetch, and is the only part of a motion library actually wanted
+   here: a real spring.
+
+   A spring is worth the trouble because a cubic-bezier cannot overshoot and
+   settle — it can only approximate the first half of that curve, which is why
+   an eased pop reads as mechanical next to a sprung one. The closed form of a
+   damped harmonic oscillator is sampled into keyframes and handed to WAAPI. */
+const Spring = {
+  /* normalised 0..1 progress, plus how long it needs to settle */
+  curve(stiffness, damping, mass, steps){
+    const w0 = Math.sqrt(stiffness / mass);
+    const z  = damping / (2 * Math.sqrt(stiffness * mass));
+    const dur = Math.min(1400, Math.max(240, (-Math.log(0.004) / (z * w0)) * 1000));
+    const p = [];
+    for (let i = 0; i <= steps; i++){
+      const t = (i / steps) * (dur / 1000);
+      if (z < 1){                                   // underdamped: it overshoots
+        const wd = w0 * Math.sqrt(1 - z * z);
+        p.push(1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t)));
+      } else {                                      // critically damped: it does not
+        p.push(1 - Math.exp(-w0 * t) * (1 + w0 * t));
+      }
+    }
+    p[p.length - 1] = 1;
+    return { p, dur };
+  }
+};
+
+const Motion = {
+  ok: !!(window.Element && Element.prototype.animate),
+  get reduced(){
+    try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(_){ return false; }
+  },
+
+  /* one sprung entrance. `from` is where the element comes from; it springs to
+     its resting transform, so the fill is `backwards` and nothing is left
+     latched onto the element afterwards — which is what lets the tile :hover
+     and .pick transforms keep working the moment the animation is over. */
+  enter(el, opts){
+    if (!el || !this.ok) return null;
+    const o = Object.assign({ stiffness:520, damping:17, mass:1,
+                              scale:0.62, y:-18, rot:0, delay:0, fade:3 }, opts || {});
+    if (this.reduced){
+      return el.animate([{ opacity:0 }, { opacity:1 }],
+                        { duration:1, delay:o.delay, fill:'backwards' });
+    }
+    const { p, dur } = Spring.curve(o.stiffness, o.damping, o.mass, 44);
+    const frames = p.map(x => ({
+      opacity: String(Math.min(1, x * o.fade)),
+      transform: `translateY(${(o.y * (1 - x)).toFixed(2)}px) `
+               + `scale(${(o.scale + (1 - o.scale) * x).toFixed(4)}) `
+               + `rotate(${(o.rot * (1 - x)).toFixed(3)}deg)`
+    }));
+    return el.animate(frames, { duration:dur, delay:o.delay, easing:'linear', fill:'backwards' });
+  }
+};
+if (Motion.ok) document.body.classList.add('jsMotion');
+
+const EQ_ANCHOR = [0.08, 0.26, 0.44, 0.60, 0.76];
+const EQ_MIN_GAP = 0.05;    // so two clamped terms cannot land on top of each other
+const EQ_LAST    = 0.90;    // nothing may be left to the very end of the line
+
+/* The words that carry the direction. The sign is the one symbol this lesson
+   is actually about — + is up the tank, − is down it — so it lands on the word
+   that MEANS it rather than at a proportional guess. */
+const MINUS = '\u2212';
+const DIR_WORDS = {
+  '+':   /\b(increase[sd]?|increasing|rise[sn]?|rises|rising|risen|up|above|add(?:s|ed)?|more|gain(?:s|ed)?)\b/i,
+  [MINUS]: /\b(used|use[sd]?|using|decrease[sd]?|decreasing|down|below|drop(?:s|ped|ping)?|less|fall(?:s|en|ing)?|fell|remov(?:e|es|ed))\b/i
+};
+
+/* Where each of the five terms should land in the line, as a fraction of it.
+
+   A term whose own word is actually spoken is pinned to that word; the rest
+   keep the proportional spread, because four of the seven lines are "Find the
+   new water level." and name nothing at all. The measurement is against
+   speakable(), not the raw line, because that is the string the engine indexes
+   its boundary events into.
+
+   Two things then have to be forced, and both come up in the real data:
+
+   * The build may never run backwards. g-1 is "Now 3 levels are used" — it
+     says the AMOUNT before the DIRECTION, so anchoring both to their words
+     would show `3` before `−`. The sign keeps its word, and the terms after it
+     are pushed past it, so `0 − 3` completes on "...are used", which is the
+     moment the line describes anyway.
+   * Nothing may be left stranded at the end, so if the pushing runs the last
+     term past EQ_LAST the whole run is squeezed back inside the line. */
+function eqAnchors(step){
+  const want = EQ_ANCHOR.slice();
+  if (!step || !step.equation) return want;
+
+  const text = speakable(step.vo || '');
+  const n = text.length || 1;
+  const at  = re => { const m = re.exec(text); return m ? m.index / n : null; };
+  /* \b keeps "3" in "3 levels" and rejects the 3 of "13" */
+  const num = v => at(new RegExp('\\b' + Math.abs(v) + '\\b'));
+
+  const found = [ num(step.equation.a),
+                  at(DIR_WORDS[step.equation.op] || DIR_WORDS['+']),
+                  num(step.equation.b) ];
+  found.forEach((f, i) => { if (f !== null) want[i] = f; });
+
+  for (let i = 1; i < want.length; i++)
+    want[i] = Math.max(want[i], want[i - 1] + EQ_MIN_GAP);
+
+  const last = want[want.length - 1];
+  if (last > EQ_LAST){
+    const lo = Math.min(want[0], 0.05);
+    const k  = (EQ_LAST - lo) / (last - lo);
+    for (let i = 0; i < want.length; i++) want[i] = lo + (want[i] - lo) * k;
+  }
+  return want;
+}
+
+const EqStage = {
+  next: 0,
+  anchor: EQ_ANCHOR.slice(),
+
+  /* each term, paired with the role label that names it underneath */
+  parts(){
+    const r = eqRoles.children;
+    return [ [eqABox, r[0], 'value'], [eqOp,   null, 'sign' ],
+             [eqBBox, r[1], 'value'], [eqEq,   null, 'sym'  ],
+             [eqRBox, r[2], 'value'] ];
+  },
+
+  /* out of sight, ready to be brought in one at a time */
+  reset(step){
+    this.next = 0;
+    this.anchor = eqAnchors(step);
+    this.parts().forEach(([el, role]) => {
+      el.classList.add('staged'); el.classList.remove('in');
+      if (role){ role.classList.add('staged'); role.classList.remove('in'); }
+    });
+    tilesEl.classList.add('staged'); tilesEl.classList.remove('in');
+  },
+
+  /* no staging at all — for the screens that have no sentence to build */
+  clear(){
+    this.next = 0;
+    this.anchor = EQ_ANCHOR.slice();
+    this.parts().forEach(([el, role]) => {
+      el.classList.remove('staged', 'in');
+      if (role) role.classList.remove('staged', 'in');
+    });
+    tilesEl.classList.remove('staged', 'in');
+  },
+
+  /* Each kind of thing enters in character.
+       value  a level or a count — drops in and settles
+       sign   the + or the −. It is the one symbol the lesson is about and it
+              lands on the word that means it, so it gets the entrance that
+              says so: stamped down from oversize, with a flash, and a heavier
+              spring so it settles with weight rather than springing about
+       sym    the = , which is punctuation and should not compete           */
+  ENTER: {
+    value: { stiffness:520, damping:17, scale:0.62, y:-18, rot:0 },
+    sign:  { stiffness:640, damping:21, scale:2.05, y:0,  rot:-9, fade:5 },
+    sym:   { stiffness:480, damping:20, scale:0.78, y:-8,  rot:0 },
+    role:  { stiffness:420, damping:22, scale:0.9,  y:-7,  rot:0, delay:90 }
+  },
+
+  show(el, kind){
+    if (!el) return;
+    el.classList.remove('staged');
+    el.classList.add('in');
+    Motion.enter(el, this.ENTER[kind] || this.ENTER.value);
+    if (kind === 'sign'){
+      el.classList.remove('stamp'); void el.offsetWidth; el.classList.add('stamp');
+    }
+  },
+
+  /* called with 0..1 as the narration advances. Terms only ever go forwards,
+     so a boundary event that arrives out of order cannot un-build the
+     sentence or show the same term twice. */
+  advance(p){
+    const parts = this.parts();
+    while (this.next < parts.length && p >= this.anchor[this.next]){
+      const [el, role, kind] = parts[this.next++];
+      this.show(el, kind); this.show(role, 'role');
+      /* a tick on each of the three values; the operators arrive silently,
+         so five beats do not become five noises over the narration */
+      if (el === eqABox || el === eqBBox || el === eqRBox) Audio_.blip('tick');
+    }
+  },
+
+  /* the line is over: anything still staged comes in now, so a screen can
+     never be left holding half a sentence */
+  finish(){ this.advance(1); },
+
+  tiles(){
+    tilesEl.classList.remove('staged');
+    tilesEl.classList.add('in');
+    [...tilesEl.children].forEach((b, i) => {
+      Motion.enter(b, { stiffness:430, damping:16, scale:0.66, y:26,
+                        rot: i % 2 ? 5 : -5, delay: i * 75 });
+    });
+  }
+};
+
 /* ═══════════════════ 9 · speech bubble ═══════════════════════════════ */
-async function say(text, speaker = 'guddu', tone = ''){
+async function say(text, speaker = 'guddu', tone = '', onProgress = null){
   Game.lastSpeaker = speaker;
   bubbleTx.textContent = text;
   bubbleEl.classList.remove('good','bad');
   if (tone) bubbleEl.classList.add(tone);
   bubbleEl.classList.add('show');
-  await VO.speak(text, speaker);
+  await VO.speak(text, speaker, onProgress);
 }
 
 /* ═══════════════════ 9b · the flood wipe ═════════════════════════════
@@ -1267,6 +1636,8 @@ const Game = {
   asked: 0, firstTry: 0, autoTimer: null,
   wrongCount: 0, idleTimer: null, solved: false,
   touched: false,               // has the learner grabbed the marker on this screen
+  commitTimer: null,            // marker screens commit by coming to rest
+  tilesOffered: false,          // the tiles only exist once the water has moved
   answer: null,                 // the level the learner has NAMED, via a tile
 
   /* every run of show() carries a number; anything that was awaiting when a
@@ -1309,8 +1680,8 @@ const Game = {
     clearTimeout(this.autoTimer); clearTimeout(this.idleTimer);
     this.heldAuto = 0; this.heldNext = false;
     VO.cancel();
-    nextBtn.hidden = true; nextBtn.dataset.restart = '';
-    nextBtn.querySelector('span').textContent = 'Continue';
+    clearTimeout(this.commitTimer);
+    nextBtn.hidden = true;
     stage.classList.remove('celebrate');
     this.snapTo(i);
   },
@@ -1337,7 +1708,6 @@ const Game = {
     const at = this.i;
     this.autoTimer = setTimeout(() => {
       if (this.i !== at) return;              // already moved on
-      nextBtn.hidden = true;
       this.next();
     }, ms);
   },
@@ -1356,13 +1726,16 @@ const Game = {
     this.wrongCount = 0; this.solved = false;
     this.interactive = false;
     this.touched = false; Ghost.stop(); Hops.clear();
-    this.answer = null; buildTiles(s, i); renderPips(s, 0);
+    this.answer = null; this.tilesOffered = false; buildTiles(s, i); renderPips(s, 0);
+    /* nothing of the sentence is on screen yet: the terms and the tiles
+       are staged out here, before the water travel below gets its await */
+    if (s.equation) EqStage.reset(s); else EqStage.clear();
     this.heldAuto = 0; this.heldNext = false;
     Flow.want(null);                          // never inherit a running pipe
     clearTimeout(this.idleTimer); clearTimeout(this.autoTimer); clearHints();
     tankEl.classList.add('locked');
-    checkBtn.hidden = true; nextBtn.hidden = true;
-    checkBtn.classList.remove('ready');
+    nextBtn.hidden = true;
+    clearTimeout(this.commitTimer);
 
     chapterName.textContent = CHAPTERS[s.chapter] || '';
     stepTag.textContent = `${i + 1} / ${FLOW.length}`;
@@ -1401,7 +1774,20 @@ const Game = {
              : s.type === 'finish'  ? 'cheer'
              : 'talk');
     applyLayout();
-    await say(s.vo, s.speaker || 'guddu');
+
+    /* The sentence assembles itself as he speaks — each term is brought in
+       by the narration's own progress, not by a timer running beside it. The
+       tiles come only once the line is over and the sentence is complete. */
+    if (s.equation){
+      await say(s.vo, s.speaker || 'guddu', '', p => { if (!stale()) EqStage.advance(p); });
+      if (stale()) return;
+      EqStage.finish();
+      /* The tiles do NOT arrive here. The sentence is now a question, and the
+         tank is where it gets answered — see offerTiles(). */
+      await wait(240);
+    } else {
+      await say(s.vo, s.speaker || 'guddu');
+    }
     if (stale()) return;
 
     /* Level 1: the water goes where the narration just said it went, on its
@@ -1425,8 +1811,6 @@ const Game = {
       if (s.type === 'finish' && i === FLOW.length - 1){
         stage.classList.add('celebrate');
         Audio_.play('correct');
-        nextBtn.querySelector('span').textContent = 'Play again';
-        nextBtn.dataset.restart = '1';
         nextBtn.hidden = false;           // the only screen that waits for a tap
         return;
       }
@@ -1438,7 +1822,6 @@ const Game = {
     Guddu.pose('idle');
     tankEl.classList.remove('locked');
     this.interactive = true;
-    if (s.type === 'move'){ checkBtn.hidden = false; checkBtn.disabled = false; }
     Hops.begin(this.level);               // this is where the move began
     markerEl.classList.add('hintGlow');   // keeps inviting until it is grabbed
     Ghost.arm(this.asked === 0 ? GHOST_ARM_FIRST : GHOST_ARM);
@@ -1489,23 +1872,60 @@ const Game = {
 
   onMoveSettled(){
     if (!this.interactive) return;
-    const from = (typeof this.step.markerStart === 'number') ? this.step.markerStart : this.step.start;
-    checkBtn.classList.toggle('ready',
-      this.step.equation ? this.answer !== null : this.level !== from);
     this.poke();
+    const from = (typeof this.step.markerStart === 'number') ? this.step.markerStart : this.step.start;
+    if (this.level === from) return;     // never moved: there is nothing to say yet
+    if (this.step.equation){ this.offerTiles(); return; }
+    this.armCommit();
   },
 
-  /* the symbolic commitment: the learner names where they landed */
+  /* The answer tiles are earned, not given. Naming the landing level before
+     moving the water is a guess at four numbers, and the tank — which is the
+     only thing in the game that SHOWS what adding 4 to −2 does — can be
+     ignored completely. So they arrive once the water has been moved and come
+     to rest somewhere other than where the screen started, which is the
+     learner saying "this is where I make it". They then name it.
+
+     Coming to rest is the trigger rather than the first touch, because tiles
+     appearing mid-drag is something moving under the hand. And it is any
+     level, never the right one: unlocking on the correct level would make the
+     tiles a formality and hand over the answer. Every equation in the game has
+     a non-zero second term, so the water always has to move. */
+  offerTiles(){
+    if (this.tilesOffered) return;
+    this.tilesOffered = true;
+    EqStage.tiles();
+  },
+
+  /* A marker screen has no button either: bringing the marker to rest on a
+     level IS naming that level. The grace before it counts is the whole
+     trick — letting go to change grip, or overshooting and coming back, must
+     not be read as an answer, so touching the marker again cancels it and
+     the clock starts over from wherever they stop next. */
+  armCommit(){
+    clearTimeout(this.commitTimer);
+    this.commitTimer = setTimeout(() => {
+      if (this.interactive && !this.solved) this.check();
+    }, COMMIT_MS);
+  },
+  cancelCommit(){ clearTimeout(this.commitTimer); },
+
+  /* The symbolic commitment: the learner names where they landed. The tap IS
+     the answer — there is no second button to confirm it — so it closes the
+     screen to further input at once and the verdict follows one beat later,
+     which is just long enough for the tile to be seen to be chosen. */
   pick(v){
     if (!this.interactive) return;
+    if (!this.tilesOffered) return;      // not on offer until the water has moved
     this.answer = v;
     [...tilesEl.children].forEach(b =>
       b.classList.toggle('pick', Number(b.dataset.v) === v));
     renderEquation(this.step, this.level, false);
-    checkBtn.classList.add('ready');
     Audio_.blip('tick');
     this.touched = true; Ghost.stop();
-    this.poke();
+    this.interactive = false;            // no double taps while it resolves
+    clearTimeout(this.idleTimer);
+    setTimeout(() => this.check(), 260);
   },
 
   /* one level of travel — called for every tick the slider crosses */
@@ -1537,24 +1957,28 @@ const Game = {
   },
 
   async check(){
-    if (!this.interactive) return;
+    if (this.solved) return;
+    clearTimeout(this.commitTimer);
     this.interactive = false;
     Ghost.stop();
-    checkBtn.disabled = true; checkBtn.classList.remove('ready');
     clearTimeout(this.idleTimer);
-    await wait(180);
+    await wait(120);
     const given = this.step.equation ? this.answer : this.level;
     if (given === this.step.target) this.correct();
     else this.wrong();
   },
 
   async correct(){
+    /* Same generation guard show() uses. Without it a screen change during
+       the celebration — the QA jumper, the editor transport — left this
+       routine running against whatever screen had replaced it: it read the
+       NEW step's correct line, then armed an auto-advance that skipped it. */
+    const gen = this.gen, stale = () => gen !== this.gen;
     this.interactive = false; this.solved = true;
     Ghost.stop();
     this.asked++; if (this.wrongCount === 0) this.firstTry++;
     tankEl.classList.add('locked');
-    clearTimeout(this.idleTimer); clearHints();
-    checkBtn.hidden = true;
+    clearTimeout(this.idleTimer); clearTimeout(this.commitTimer); clearHints();
     Audio_.play('correct');
     Guddu.pose(this.i === FLOW.length - 2 ? 'cheer' : 'happy');
     stage.classList.add('celebrate');
@@ -1565,12 +1989,14 @@ const Game = {
     markCorrect(this.level);
     renderEquation(this.step, this.level, true);
     await say(this.step.correct, 'guddu', 'good');
+    if (stale()) return;
     await wait(BEAT);
-    nextBtn.hidden = false;
+    if (stale()) return;
     this.autoNext(AUTO_CORRECT);
   },
 
   async wrong(){
+    const gen = this.gen, stale = () => gen !== this.gen;
     this.wrongCount++;
     Ghost.stop();
     const tierIdx = Math.min(this.wrongCount, 3) - 1;
@@ -1582,33 +2008,49 @@ const Game = {
     stage.classList.add('shake');
     setTimeout(() => stage.classList.remove('shake'), 460);
     await say(tier.vo, 'guddu', 'bad');
+    if (stale()) return;
     Guddu.pose('think');
     await this.runHintAnim(tier.anim);
+    if (stale()) return;
     /* The doc defines three tiers and no more, so a fourth attempt repeats
        the third rather than inventing a walkthrough. */
 
     clearHints();
     Guddu.pose('idle');
     tankEl.classList.remove('locked');
+
+    /* A tile tap is now the whole answer, so the tile that was just spent is
+       marked and retired. Leaving it live invites the same tap again, and
+       with no Check button in the way that is a loop with nothing in it. */
+    if (this.step.equation && this.answer !== null){
+      [...tilesEl.children].forEach(b => {
+        if (Number(b.dataset.v) === this.answer){ b.classList.add('spent'); b.disabled = true; }
+        b.classList.remove('pick');
+      });
+      this.answer = null;
+      renderEquation(this.step, this.level, false);
+    }
+
     this.interactive = true;
-    checkBtn.disabled = false;
-    if (this.step.type === 'move') checkBtn.hidden = false;
-    /* pressing Check without ever moving the marker is exactly the person
-       the hand is for, so offer it again — but never to someone who has
-       been dragging and simply got it wrong */
+    /* never having touched the marker is exactly the person the hand is for,
+       but never to someone who has been dragging and simply got it wrong */
     if (!this.touched){ markerEl.classList.add('hintGlow'); Ghost.arm(); }
     this.poke();
   },
 
   async onIdle(){
     if (!this.interactive || this.hold) return;
+    clearTimeout(this.commitTimer);
     const idle = this.step.idle;
     if (!idle) { this.poke(); return; }
+    const gen = this.gen, stale = () => gen !== this.gen;
     this.interactive = false;
     Ghost.stop();
     Guddu.pose('think');
     await say(idle.vo, idle.speaker || 'guddu');
+    if (stale()) return;
     await this.runHintAnim(idle.anim);
+    if (stale()) return;
     clearHints();
     Guddu.pose('idle');
     this.interactive = true;
@@ -1700,12 +2142,11 @@ function loop(now){
 }
 
 /* ═══════════════════ 12 · wiring ═════════════════════════════════════ */
-checkBtn.addEventListener('click', () => Game.check());
-nextBtn .addEventListener('click', () => {
-  clearTimeout(Game.autoTimer);
-  if (nextBtn.dataset.restart === '1'){ location.reload(); return; }
-  nextBtn.hidden = true; Game.next(true);     // a deliberate tap always goes
-});
+/* The only button the game still has. Check went because a tile tap and a
+   marker coming to rest already say everything Check was asking to confirm,
+   and Continue went because the flow moves on by itself everywhere — the one
+   place it must not is the end, which is what this is. */
+nextBtn.addEventListener('click', () => location.reload());
 
 $('#replayBtn').addEventListener('click', () => {
   if (!Game.step) return;
@@ -1739,7 +2180,7 @@ $('#startBtn').addEventListener('click', () => {
                   `<span>${s.screen || s.id}</span>` +
                   `<em>${CHAPTERS[s.chapter] || ''}</em>`;
     b.addEventListener('click', () => {
-      nextBtn.dataset.restart = ''; nextBtn.querySelector('span').textContent = 'Continue';
+      nextBtn.hidden = true;
       stage.classList.remove('celebrate');
       clearTimeout(Game.autoTimer);
       Game.waterLevel = s.start;          // land cleanly, no long travel
@@ -1759,6 +2200,10 @@ $('#startBtn').addEventListener('click', () => {
 /* ═══════════ end QA ═══════════════════════════════════════════════════ */
 
 window.__GAME = Game;
+window.__HOPS = Hops;
+window.__EQ = EqStage;          // test hooks
+window.__SPRING = Spring;
+window.__MOTION = Motion;
 window.__FLOW = Flow;
 window.__AUDIO = Audio_;
 

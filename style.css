@@ -410,15 +410,33 @@ html,body{
   position:absolute; left:0; top:0; width:714px; height:1084px;
   pointer-events:none; z-index:4;
 }
-#hopArcs .halo{ fill:none; stroke:#ffffff; stroke-opacity:.9; stroke-width:14;
-                stroke-linecap:round; }
-#hopArcs .ink { fill:none; stroke:#0b2a6b; stroke-width:6; stroke-linecap:round; }
-#hopArcs .head{ fill:#0b2a6b; stroke:#ffffff; stroke-width:3; stroke-linejoin:round; }
-#hopArcs .pop { animation:hopIn .26s cubic-bezier(.2,1.5,.4,1) both; }
-@keyframes hopIn{ from{ opacity:0; transform:translateX(-10px) } to{ opacity:1; transform:none } }
+/* The chain is a filled, tapered ribbon rather than a stroked line — a stroke
+   is one width for its whole length, and a hop that leaves thick and lands
+   thin is what gives it direction and depth. Both paths carry EVERY arc as
+   separate subpaths of one element, so the white outline is drawn once for the
+   whole chain; stroking it per arc made the halos overlap and the joins lumpy. */
+#hopArcs .halo{ fill:#ffffff; fill-opacity:.92; stroke:#ffffff; stroke-opacity:.92;
+                stroke-width:7; stroke-linejoin:round; }
+#hopArcs .ink { fill:url(#gHop); stroke:none; }
+
+/* a node on every level the chain touches, and a stub joining it back toward
+   the number it belongs to */
+#hopArcs .node{ fill:#ffffff; stroke:#0b2a6b; stroke-width:3.5; }
+#hopArcs .rung{ stroke:#0b2a6b; stroke-opacity:.42; stroke-width:4; stroke-linecap:round; }
+/* where the move began, and where it has got to */
+#hopArcs .takeoff{ fill:#ffffff; fill-opacity:.95; stroke:#0b2a6b; stroke-width:4.5; }
+#hopArcs .landing{ fill:#0b2a6b; stroke:#ffffff; stroke-width:4.5; }
+
+/* one shadow over the whole group, so it lifts off the water as a single
+   object instead of each arc casting its own */
+#hopArcs{ filter:drop-shadow(0 3px 4px rgba(4,25,70,.5)); }
+
+#hopArcs .pop{ transform-box:fill-box; transform-origin:center;
+               animation:hopLand .3s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes hopLand{ from{ transform:scale(.3); opacity:0 } to{ transform:none; opacity:1 } }
 
 #hopCount{
-  position:absolute; left:400px; width:126px; height:54px; margin-top:-27px;
+  position:absolute; left:372px; width:126px; height:54px; margin-top:-27px;
   display:none; align-items:center; justify-content:center; gap:7px;
   border-radius:28px; background:rgba(255,255,255,.94);
   box-shadow:0 4px 12px rgba(4,25,70,.3), inset 0 0 0 3px rgba(11,42,107,.85);
@@ -666,25 +684,103 @@ html,body{
 }
 #answerTiles button:disabled{ cursor:default; transform:none; }
 #answerTiles.locked button:not(.pick){ opacity:.45; }
+/* a tile already spent on a wrong answer: struck through and out of play, so
+   the same tap is not on offer a second time now that nothing confirms it */
+#answerTiles button.spent{
+  opacity:.5; color:#96400f; text-decoration:line-through;
+  box-shadow:inset 0 0 0 4px #c9a89a, 0 2px 5px rgba(6,25,60,.12);
+  background:#f6eeea;
+}
+#answerTiles button.spent:hover{ transform:none; }
 
-#checkBtn,#nextBtn{
+/* ── staging the sentence, one term at a time ─────────────────────────
+   Every term and every tile starts out of sight (`staged`) and is brought in
+   by adding `in`, in time with the narration — see EqStage in game.js.
+
+   The fill mode is `backwards`, never `both`: `both` leaves the last
+   keyframe latched onto the element for good, which would beat the plain
+   `transform` in the tile hover and `.pick` rules and freeze every tile at
+   its landing size. `backwards` holds the FIRST keyframe during the delay
+   and then hands the element back to its ordinary styles, which is what
+   those two rules need to keep working.                                   */
+.eqBox.staged, .eqSym.staged, #eqRoles b.staged,
+#answerTiles.staged button{ opacity:0; }
+/* An invisible tile still takes clicks, so a staged row has to be out of reach
+   as well as out of sight — otherwise the answer can be tapped through it
+   before the water has been moved at all. */
+#answerTiles.staged{ pointer-events:none; }
+
+.eqBox.in, .eqSym.in{
+  animation:eqTermIn .44s cubic-bezier(.34,1.56,.64,1) backwards;
+}
+@keyframes eqTermIn{
+  0%  { opacity:0; transform:scale(.68) translateY(-16px); }
+  62% { opacity:1; transform:scale(1.07) translateY(0); }
+  100%{ opacity:1; transform:none; }
+}
+
+/* the role label rides in just behind the box it names, and settles at the
+   .92 the rule below it already asks for rather than at full strength */
+#eqRoles b.in{ animation:eqRoleIn .44s ease-out .1s backwards; }
+@keyframes eqRoleIn{
+  0%  { opacity:0; transform:translateY(-7px); }
+  100%{ opacity:.92; transform:none; }
+}
+
+/* the tiles arrive together, once the sentence is complete and he has
+   stopped talking — a short stagger so they read as one group landing */
+#answerTiles.in button{
+  animation:eqTileIn .46s cubic-bezier(.34,1.56,.64,1) backwards;
+}
+#answerTiles.in button:nth-child(1){ animation-delay:0ms;   }
+#answerTiles.in button:nth-child(2){ animation-delay:85ms;  }
+#answerTiles.in button:nth-child(3){ animation-delay:170ms; }
+#answerTiles.in button:nth-child(4){ animation-delay:255ms; }
+
+/* ── the sprung versions ───────────────────────────────────────────────
+   Everything above is the fallback. Where the Web Animations API exists —
+   which is everywhere this runs — game.js puts `jsMotion` on <body> and drives
+   the same entrances with a real spring instead, so the CSS keyframes are
+   switched off to stop the two fighting over `transform`. */
+body.jsMotion .eqBox.in,
+body.jsMotion .eqSym.in,
+body.jsMotion #eqRoles b.in,
+body.jsMotion #answerTiles.in button{ animation:none; }
+body.jsMotion #eqRoles b.in{ opacity:.92; }
+
+/* The sign is stamped rather than dropped, so it gets a flash to land on.
+   Only the glow is here; the movement is the spring in game.js. */
+.eqSym.stamp{ animation:eqSignFlash .5s ease-out; }
+@keyframes eqSignFlash{
+  0%  { filter:drop-shadow(0 0 0 rgba(255,205,0,0)); }
+  22% { filter:drop-shadow(0 0 16px rgba(255,205,0,.95)) drop-shadow(0 0 30px rgba(255,150,0,.5)); }
+  100%{ filter:drop-shadow(0 0 0 rgba(255,205,0,0)); }
+}
+@keyframes eqTileIn{
+  0%  { opacity:0; transform:scale(.7) translateY(22px); }
+  62% { opacity:1; transform:scale(1.06) translateY(0); }
+  100%{ opacity:1; transform:none; }
+}
+
+#nextBtn{
   position:absolute; left:1136px; top:840px; width:260px; height:109px;
   border:0; padding:0; background:transparent; cursor:pointer;
-  background-image:url("assets/img/button-pill-blue.png");
+  background-image:url("assets/img/button-pill-orange.png");
   background-size:100% 100%; background-repeat:no-repeat;
   filter:drop-shadow(0 8px 14px rgba(0,0,0,.28));
   transition:transform .12s ease, filter .12s ease;
 }
-#nextBtn{ background-image:url("assets/img/button-pill-orange.png"); }
-#checkBtn[hidden],#nextBtn[hidden]{ display:none; }
-#checkBtn:hover,#nextBtn:hover{ transform:translateY(-3px) scale(1.02); }
-#checkBtn:active,#nextBtn:active{ transform:translateY(2px) scale(.99); }
-/* Both pill PNGs are drawn off-centre inside their own canvas, so centring
-   the label in the button box lands it off-centre on the pill. Measured
-   opaque bounds:
+#nextBtn[hidden]{ display:none; }
+#nextBtn:hover{ transform:translateY(-3px) scale(1.02); }
+#nextBtn:active{ transform:translateY(2px) scale(.99); }
+/* The pill PNG is drawn off-centre inside its own canvas, so centring the
+   label in the button box lands it off-centre on the pill. Measured opaque
+   bounds:
 
      button-pill-orange  1684×634  pill x8..1627 y10..510  → centre 48.55% 41.01%
-     button-pill-blue    1617×604  pill x3..1612 y104..600 → centre 49.94% 58.28%
+
+   (button-pill-blue, 1617×604, centre 49.94% 58.28%, was Check's and is no
+   longer referenced by anything.)
 
    background-size is 100% 100%, so those fractions hold at any button size.
    The label is pinned to them instead of to the box. padding-left cancels the
@@ -694,20 +790,13 @@ html,body{
    line box carries descender room the capitals do not use, so the ink sits
    about 0.05em high. Measured on this stack it wants 1.96px at 46px and
    2.22–3.17px at 38px; 0.05em splits that and, unlike a fixed pixel figure,
-   survives the label changing (Continue → Play again). */
-#checkBtn span,#nextBtn span{
-  position:absolute; left:49.94%; top:58.28%;
+   survives the label changing. */
+#nextBtn span{
+  position:absolute; left:48.55%; top:41.01%;
   transform:translate(-50%, calc(-50% + 0.05em));
   white-space:nowrap; padding-left:.5px;
   font-family:var(--font); font-size:38px; font-weight:800; color:#fff;
   text-shadow:0 3px 4px rgba(0,0,0,.35); letter-spacing:.5px;
-}
-#nextBtn span{ left:48.55%; top:41.01%; }
-#checkBtn:disabled{ filter:grayscale(.55) opacity(.6); cursor:default; transform:none; }
-#checkBtn.ready{ animation:btnReady 1.5s ease-in-out infinite; }
-@keyframes btnReady{
-  0%,100%{ filter:drop-shadow(0 8px 14px rgba(0,0,0,.28)) }
-  50%    { filter:drop-shadow(0 0 20px rgba(90,200,255,.95)) }
 }
 
 /* ── hud (deliberately small — not part of the Figma frame) ───────────── */

@@ -3,14 +3,14 @@
 Open **index.html** in Chrome (double-click it). Nothing to install, no server needed.
 
 ## What it is
-The full 23-screen flow from *Integers - Game V2.tsv*, built on the Figma
+The full 20-screen flow from *Integers - Game V2.tsv*, built on the Figma
 frame **Integers › page Final › Slide 16:9** (`node 94:1405`).
 
 | Chapter | Screens | What the learner does |
 | --- | --- | --- |
 | The Village Tank | 9 | Find 0, then chase the water with the marker: +2, +6, +3, −1, −4 |
-| Calculate The Level | 7 | Same tank plus a number sentence — five addition problems |
-| Water Used Up | 7 | Five subtraction problems, then a finish screen |
+| Calculate The Level | 5 | Same tank plus a number sentence — three addition problems |
+| Water Used Up | 6 | Four subtraction problems, then a finish screen |
 
 Every screen carries its VO line, the correct-answer line, three escalating
 wrong-answer hints with their animations, and an inactivity prompt — exactly as
@@ -45,7 +45,7 @@ at 0 and the marker is parked at +5, so there is something to drag.
 ### The number sentence
 
 The left-hand side is established the moment the screen opens and never
-changes: `(−2) + (+4) = ?`. The learner is solving the **right-hand side**, not
+changes: `−2 + 4 = ?`. The learner is solving the **right-hand side**, not
 assembling the left. The answer box shows whatever level they are currently on
 — their proposed answer — and turns green once it is committed and correct.
 
@@ -53,7 +53,7 @@ An earlier build counted the second term up as you dragged on "guided" screens
 (`0 + (+1)`, `0 + (+2)` …). That is not what the doc asks for and it is gone,
 along with the `guided` flag.
 
-Press **Check** to submit.
+There is no submit button — see "Nothing to confirm" below.
 
 Get it wrong and you get hint tier 1, then 2, then 3. On the fourth attempt
 Guddu walks the answer through on the gauge, resets, and lets you try again.
@@ -158,7 +158,7 @@ Current cost: 60 fps with the river, 60 fps without. Transform and opacity only.
 ### The number sentence
 
 The left-hand side is established the moment the screen opens and never
-changes: `(−2) + (+4) = ?`. The learner is solving the **right-hand side**, not
+changes: `−2 + 4 = ?`. The learner is solving the **right-hand side**, not
 assembling the left. The answer box shows whatever level they are currently on
 — their proposed answer — and turns green once it is committed and correct.
 
@@ -166,7 +166,7 @@ An earlier build counted the second term up as you dragged on "guided" screens
 (`0 + (+1)`, `0 + (+2)` …). That is not what the doc asks for and it is gone,
 along with the `guided` flag.
 
-Press **Check** to submit.
+There is no submit button — see "Nothing to confirm" below.
 
 Get it wrong and you get hint tier 1, then 2, then 3. On the fourth attempt
 Guddu walks the answer through on the gauge, resets, and lets you try again.
@@ -223,9 +223,9 @@ element at them:
 
 ## Signs, not words
 
-Everything on screen shows the sign itself — `+2`, `−1`, `(−3)` — and never the
+Everything on screen shows the sign itself — `+2`, `−1`, `−3` — and never the
 word. All 41 signed lines use U+002B and U+2212; the gauge labels go through the
-same `fmt()` as the equation panel, so `−3` on the scale and `(−3)` in the
+same `fmt()` as the equation panel, so `−3` on the scale and `−3` in the
 sentence are the same glyph.
 
 A speech engine cannot pronounce a glyph, though: `−1` comes out as "one" or as
@@ -265,12 +265,14 @@ followed exactly.
 | Screen | Behaviour |
 | --- | --- |
 | Cutscene (`observe`) | Advances on its own once the narration and the water animation finish. No button — there is nothing to decide. |
-| After a correct answer | Advances on its own after a longer pause, because the completed number sentence is the teaching moment and should be looked at. The **Continue** button stays on screen the whole time for anyone who wants to move sooner. |
+| After a correct answer | Advances on its own after a longer pause, because the completed number sentence is the teaching moment and should be looked at. |
 | The last screen | Waits. **Play again** is the only tap the game insists on. |
 
 Timings are `AUTO_OBSERVE` (1100 ms) and `AUTO_CORRECT` (2900 ms) at the top of
-game.js. The flow sheet never specified a Continue tap anywhere, so this is
-closer to the document than the button was.
+game.js. `AUTO_CORRECT` came down from 2900 to 2200 when the Continue button
+went: it used to be the way out of that wait, and without it the pause has to
+be one nobody wants out of. The flow sheet never specified a Continue tap
+anywhere, so this is closer to the document than the button was.
 
 ## Chapter transitions — the flood wipe
 Moving between chapters, the river climbs the whole screen, the next chapter is
@@ -302,8 +304,8 @@ Three layers, escalating only if the one before it is ignored:
    and the hand back, on the grounds that fifteen seconds of silence has
    earned them.
 
-Pressing Check without ever moving the marker also re-offers the hand; getting
-it wrong after dragging does not.
+Getting it wrong without ever having moved the marker also re-offers the hand;
+getting it wrong after dragging does not.
 
 **The first question gets the hand at once.** Screen 1's line is *"Find 0, the
 level that shows sufficient water."* — it never mentions a marker or dragging,
@@ -319,6 +321,137 @@ the marker and only the arm swings clear of the tank wall.
 
 The marker's tick-to-tick snap is now eased (140 ms, 80 ms while dragging)
 rather than jumped, so it reads as magnetic instead of twitchy.
+
+## The sign lands on the word that means it
+
+Each term is pinned to its own word in the narration where that word is
+actually spoken, measured against `speakable()` — the string the engine indexes
+its boundary events into, not the raw line.
+
+The sign matters most. `+` is up the tank and `−` is down it, and that is the
+whole lesson, so it arrives exactly as Guddu says the word:
+
+| Screen | Word | Sign lands at |
+| --- | --- | --- |
+| `l2-1` | "increases" | 0.341 — exact |
+| `l2-3` | "increase" | 0.300 — exact |
+| `g-1` | "used" | 0.532 — exact |
+| the other four | — | proportional |
+
+Four of the seven lines are "Find the new water level." or "Your turn! Find the
+new water level." and name nothing at all, so those keep the even spread. There
+is no fixing that in code; it needs copy written into the flow doc.
+
+**The build may never run backwards.** `g-1` is *"Now 3 levels are used"* — it
+says the amount before the direction, so pinning both to their words would show
+the `3` before the `−`. The sign keeps its word and the terms after it are
+pushed past it, which lands `0 − 3` complete on "...are used": the moment the
+line is describing anyway. If the pushing would run the last term off the end
+of the line, the whole run is squeezed back inside it.
+
+`eqAnchors()` in game.js. It is recomputed per screen in `EqStage.reset()`.
+
+## Motion: a spring, and no library
+
+The entrances are driven by the **Web Animations API**, with the CSS keyframes
+left in as the fallback — `body.jsMotion` switches them off so the two cannot
+fight over `transform`.
+
+No library, deliberately. This game is opened by double-clicking index.html:
+there is no server and no build step, so a CDN `<script>` would make it need the
+internet to animate, and an ES-module library cannot be loaded over `file://` at
+all — module scripts are CORS-checked and a `file://` origin is opaque. WAAPI is
+already in every browser this runs on and gives the one thing a motion library
+was wanted for: a real spring.
+
+A spring is worth it because a cubic-bezier **cannot overshoot and settle**. It
+can only approximate the first half of that curve, which is why an eased pop
+reads as mechanical next to a sprung one. `Spring.curve()` samples the closed
+form of a damped harmonic oscillator into keyframes — 45 of them, peaking at
+about 1.24 before settling — and hands them to `Element.animate()`.
+
+Each kind of thing enters in character:
+
+| | Entrance |
+| --- | --- |
+| **value** (a level or a count) | drops in and settles |
+| **sign** (`+` / `−`) | stamped down from twice size with a tilt, a heavier spring so it lands with weight, and a gold flash to land on |
+| **sym** (`=`) | a small pop; it is punctuation and must not compete |
+| **role labels** | ride in just behind the box they name |
+| **tiles** | sprung, staggered 75 ms, alternating tilt, so the row lands as a handful of cards |
+
+`fill` is `backwards`, never `both` — the same trap as the CSS version: `both`
+latches the last keyframe onto the element and beats the tile `:hover` and
+`.pick` transforms. `prefers-reduced-motion` drops every entrance to a plain
+fade.
+
+## The tiles are earned, not given
+
+On an equation screen the tiles do not exist until the water has been moved and
+come to rest somewhere other than where the screen started.
+
+Without that gate the tank is optional. `−2 + 4 = ?` with four numbers under it
+is a multiple-choice question, answerable by reading the sentence and picking,
+and the one thing in the game that actually *shows* what adding 4 to −2 does
+can be skipped entirely. The gauge is where the answer is worked out; the tiles
+are only where it gets said. So the working comes first.
+
+Three details decide whether this teaches or just annoys:
+
+* **Coming to rest, not the first touch.** Tiles appearing mid-drag is something
+  moving under the hand. They arrive when the marker is let go.
+* **Any level, never the right one.** Unlocking on the correct level would hand
+  over the answer and make the tiles a formality. Resting anywhere that is not
+  the starting level opens them — including a wrong one.
+* **A staged tile is out of reach, not merely invisible.** `opacity:0` still
+  takes clicks, so `#answerTiles.staged` is `pointer-events:none` and `pick()`
+  refuses anything before `tilesOffered`. Otherwise the answer can be tapped
+  straight through the hidden row.
+
+Every equation in the game has a non-zero second term, so the target is never
+the starting level and the water always has to move — no screen can be locked
+out by this. `offerTiles()` in game.js, and the check is in `onMoveSettled()`.
+
+Level 1 is untouched: it has no tiles, and its marker still commits by resting.
+
+## Nothing to confirm
+
+The game has **one button**, on the last screen, and it says *Play again*.
+Check and Continue are both gone.
+
+**Check went because the answer was already given.** Tapping a tile is not
+nominating an answer for approval, it is answering; asking the learner to then
+confirm it adds a step that decides nothing. A tap now resolves on its own,
+one beat later — long enough for the tile to be seen to be chosen before the
+verdict lands on it.
+
+It also took a bug with it. `check()` read `Game.answer`, which is `null` until
+a tile is tapped, so pressing Check with nothing selected compared `null`
+against the target, failed, and burned a hint tier for it.
+
+**Marker screens commit by coming to rest.** Level 1 has no tiles, so bringing
+the marker to a level and leaving it there is what names that level.
+`COMMIT_MS` (900 ms) is the grace before resting counts, and it is the whole
+trick: letting go to change grip, or overshooting and coming back, must not
+read as an answer. Touching the marker again cancels the pending commit and
+the clock restarts from wherever they stop next. Resting on the level the
+screen *started* on never commits — there is nothing to say yet.
+
+**A spent tile is retired.** With no Check in the way, a wrong tile left live
+invites the same tap again, which is a loop with nothing in it. The tile that
+was just spent is struck through and disabled; the rest stay live.
+
+**Continue went because every screen already moves on by itself.** Cutscenes
+advanced on their own, and so did correct answers — Continue was only ever a
+way of getting there sooner. The finish screen is the one place the game must
+not move on by itself, which is what the remaining button is for. It reloads.
+
+One thing this exposed: `correct()`, `wrong()` and `onIdle()` had no generation
+guard, unlike `show()`. Changing screen mid-celebration left `correct()`
+running against whatever had replaced it — it read the *new* screen's correct
+line and then armed an auto-advance that skipped it. Only the QA jumper and the
+editor transport can cause that, but both are how anyone actually works on this.
+All three now carry the same `gen` check `show()` uses.
 
 ## The answer line
 
@@ -389,13 +522,13 @@ it — only the structure, the arithmetic and the internal consistency.
 
 | Check | Result |
 | --- | --- |
-| Screen count | 22 — 8 / 7 / 7 across the three chapters |
+| Screen count | 20 — 9 / 5 / 6 across the three chapters |
 | VO on every screen | pass |
 | Correct-answer line on every `move` screen | pass |
-| Three escalating wrong-answer tiers, each with `vo` **and** `anim` | pass, all 15 |
-| Inactivity prompt on every `move` screen | pass, all 15 |
+| Three escalating wrong-answer tiers, each with `vo` **and** `anim` | pass, all 13 |
+| Inactivity prompt on every `move` screen | pass, all 13 |
 | Equation targets derived, never hand-written | pass |
-| Every level inside the ±5 gauge | pass |
+| Every level inside the ±6 gauge | pass |
 | The documented ±6 retarget keeps its movement deltas | pass — rise 3, fall 3, fall 4 |
 | Cutscene animation agrees with its narration | pass (see below) |
 
@@ -476,6 +609,108 @@ it. A `mix-blend-mode:screen` sheen over the metal is the no-new-art middle
 option, but blend modes force a backdrop readback — the river section above
 measured that at 38fps vs 59.8 — so it would need measuring before it stays.
 
+## The sentence builds itself as he talks
+
+The number sentence and its four answer tiles used to arrive in one block the
+moment the screen opened — nine new objects landing together while Guddu was
+still explaining what the screen was about. Nothing told the learner where to
+look first.
+
+It is assembled one term at a time instead, in the order the sentence is read
+and in the order the narration says it:
+
+| Beat | What appears | Why there |
+| --- | --- | --- |
+| 1 | the starting level `−2` | the level the water is on now |
+| 2 | the sign `+` / `−` | **the increase or the decrease** — the line says it here |
+| 3 | the amount `4` | by how much |
+| 4 | `=` | |
+| 5 | the empty answer box `?` | the question, asked last |
+
+The sign is its own beat because it is the thing the line is actually about:
+"it increases by 3" and "3 levels are used" differ in that symbol and nothing
+else. Each term brings in the role label underneath it, and the three value
+boxes get a soft tick; the two operators arrive silently, so five beats do not
+become five noises over the narration.
+
+**The tiles are held back** until the sentence is complete *and* the narration
+has stopped — `Promise.all` on the two, so whichever finishes last is what they
+wait for. There is only ever one new thing on screen to look at.
+
+**The beat is paced off the length of the line**, not fixed. A fixed 430 ms ran
+the sentence on for a second after "Find the new water level." had finished, and
+was over long before the end of a line three times that. `EqStage.pace()` uses
+the same length estimate the muted branch of `VO.speak()` times itself with, so
+the sentence keeps step whether the narration is really being spoken or not —
+`EQ_BEAT_MIN` / `EQ_BEAT_MAX` clamp it at 300 and 620 ms.
+
+The reveal is **not** driven by speech-boundary events. They are the obvious way
+to sync to the actual spoken word, and they are not reliable: several engines
+never fire them, and none fire when the sound is muted, which would leave the
+sentence permanently half-built. A cadence that runs alongside the narration is
+what actually stays in step.
+
+Everything is `EqStage` in game.js and the `.staged` / `.in` rules in style.css.
+One trap worth knowing: those animations use `animation-fill-mode: backwards`,
+never `both`. `both` latches the last keyframe onto the element permanently,
+which beats the plain `transform` in the tile `:hover` and `.pick` rules and
+freezes every tile at its landing size.
+
+## No brackets
+
+The sentence is written `−2 + 4 = ?`, never `(−2) + (+4) = ?`.
+
+Brackets are the notation of the **sign rules** — they ask the learner to
+resolve a signed quantity against an operator, which is the lesson where "two
+minuses make a plus" lives. That is not this lesson, and the tank cannot show
+it. Here the operator means one thing and one thing only: **`+` is up the tank
+and `−` is down it.**
+
+So the three boxes hold three different kinds of thing, which is what the role
+labels underneath them have always said:
+
+| Box | Role | Written as | Example |
+| --- | --- | --- | --- |
+| first | **started at** | a level, exactly as the gauge writes it | `−2` |
+| middle | **jumped** | a count of levels — unsigned, the operator carries the direction | `4` |
+| answer | **landed on** | a level again | `+2` |
+
+All seven sentences in the game read this way:
+
+```
+0 + 3 = ?     +2 + 3 = ?     −2 + 4 = ?
+0 − 3 = ?     +4 − 2 = ?     +2 − 4 = ?     −1 − 3 = ?
+```
+
+`−1 − 3 = ?` is "start at −1, go down 3" and nothing else. It is `fmt()` for the
+two levels and `count()` for the middle box, both in game.js; the old `wrap()`
+that added the brackets is gone. Putting a bracket back would put a rule on
+screen that the game never teaches and the tank cannot demonstrate — and it
+only stays honest while the second term is positive, which is the next section.
+
+## No negative second term
+
+Every number sentence in the game adds or subtracts a **positive** quantity.
+Three screens were removed because their second term was negative:
+
+| Removed | Was | Why |
+| --- | --- | --- |
+| `l2-4` | `(+3) + (−5)` | adding a negative |
+| `l2-5` | `(−2) + (−3)` | adding a negative |
+| `g-5`  | `(−3) − (−2)` | subtracting a negative — "two minuses make a plus" |
+
+The tank cannot honestly show any of them. Its whole model is *the water rises
+by this much* or *this much is used up*, and a negative second term inverts that
+reading: `− (−2)` has to make the water **go up** while the sentence says
+"minus", which teaches the sign rule as an arbitrary trick rather than as
+something the tank demonstrates. The rule is now structural — `equation.b` is
+positive on all seven remaining sentences — so anything added later has to obey
+it or the tank will contradict the maths.
+
+Removing them closed two of the water discontinuities as a side effect: `g-4`
+now lands on −4 and the finish screen opens there, and Level 2 ends on +2
+instead of −5.
+
 ## Two interaction models, one per level
 
 **Level 1 is a marker level.** The water moves on its own, exactly as the
@@ -498,13 +733,13 @@ and have been removed:
 | Removed | Was |
 | --- | --- |
 | the spoken number sentence | a second VO line reading the equation aloud after the screen's own line |
-| the hint strip | `Read (−2) + (+4) = ? then drag the red marker to the answer` and a per-screen `hint` on every screen |
+| the hint strip | `Read −2 + 4 = ? then drag the red marker to the answer` and a per-screen `hint` on every screen |
 | the fourth-attempt walkthrough | "Watch carefully — I will show you", a scripted demo, then "Now you try." The doc defines three tiers, so a fourth attempt now repeats the third |
 | the first-try tally | `You answered 12 of 16 first time.` on the finish screen |
 
 Two places where the source itself needs a look:
 
-* **`(−2) + (+4)`** — the doc's VO is *"Water level is increase. Find the new
+* **`−2 + 4`** — the doc's VO is *"Water level is increase. Find the new
   water level."* It is transcribed verbatim and read aloud as written.
 * **Screen 1** — the doc says *"Learner taps 0"* and its third hint was
   *"Tap 0."*, left over from when that screen was a tap target; from screen 3
@@ -537,16 +772,52 @@ red artwork so it never competes with the marker you drag. "I started at −2, I
 am now at +2" becomes something the learner can see instead of something they
 have to hold in their head, which is the objective it exists for.
 
-**The jumps.** One arc per level crossed, drawn from the pin to the marker, with
-a running count beside them (`4 ▲`). This is the number-line hop the learner
-will meet in the textbook, and it is the only place the *size* of a move is
-visible rather than merely spoken. The whole chain is rebuilt from
-`(start, current)` on every change, so dragging back and forth stays honest.
+**The jumps.** One arc per level crossed, drawn from the pin to the marker as a
+single tapered ribbon, with a node on every level it touches and a running
+count beside it (`4 ▲`). This is the number-line hop the learner will meet in
+the textbook, and it is the only place the *size* of a move is visible rather
+than merely spoken. The whole chain is rebuilt from `(start, current)` on every
+change, so dragging back and forth stays honest.
 
-Two details that matter for it to read as hops rather than as a wavy line: the
-bulge is close to the step height, so each arc is near-semicircular, and there
-is a gap at both ends so consecutive arcs do not fuse. `HOP_X`, `HOP_BULGE` and
-`HOP_GAP` at the top of the `Hops` block in game.js.
+It took three goes to make it read as hops rather than as a glyph, and the
+failures are worth keeping:
+
+* **A bulge near the step height makes a circle, not a leap.** The first
+  version used a 50 bulge against a 51px chord; with round caps and a gap
+  curling both tips inward, each arc closed into a **"C"**. `HOP_BULGE` is 36
+  now, which puts the apex about 27px out against the same chord.
+* **Flattening them alone makes a curly brace.** Shallow same-side scallops
+  with small gaps fuse into a `}`. On a real number line the hops sit *on an
+  axis*; there is no axis here, so nothing broke them apart.
+* **The nodes are what fixed it.** A dot on every level the chain touches,
+  sitting exactly on that level's line, does two jobs at once: it ties each arc
+  end to a real level, and it breaks the scallops into separate hops. `HOP_GAP`
+  is 0 — the arcs meet *at* the nodes, the way textbook hops meet on the line.
+* **A short stub** runs from each node back toward its number. It starts at
+  `HOP_X - 34`, right of the label box, which ends at tank-local 308 — anything
+  further left is drawn through the digits.
+
+`HOP_X` stays at **326**, and moving it onto the ticks is a trap: the labels
+occupy 238..308, so the arcs would strike the numbers.
+
+**There is no arrowhead.** The old one was a 22×15 triangle drawn axis-aligned
+pointing up or down, sitting on a curve that arrives travelling *horizontally* —
+both control points share their endpoint's y, so the tangent at the end is
+`(-bulge, 0)`. The arrow and the line it capped disagreed, which was most of why
+the marker looked wrong. A filled landing disc is what a number line actually
+uses, cannot contradict the curve, and direction is already carried by the count
+chip's arrow and by the start pin.
+
+**Depth.** The chain is a *filled, tapered ribbon*, not a stroked line — a stroke
+is one width for its whole length. It is built by walking the bezier centreline
+and stepping off it perpendicular, the same construction `Flow.drawOut()` uses
+for the outflow jet. The taper **grows toward the landing** (`HOP_W0` 6 →
+`HOP_W1` 11): that end is where the learner is now and it follows the marker as
+they drag, so the weight belongs there with the filled disc. A gradient across
+it gives the ribbon a lit and a shadowed side, and one `drop-shadow` over the
+whole group lifts it off the water as a single object rather than each arc
+casting its own. Every arc is a subpath of **one** path element, so the white
+outline is drawn once; stroking a halo per arc made the joins lumpy.
 
 ### Still to come
 
@@ -561,7 +832,7 @@ the first screens without one.
 ```
 index.html   stage markup — every element commented with its Figma rect
 style.css    all positioning, transcribed from the frame
-data.js      the 22 screens: VO, hints, animations, equations
+data.js      the 20 screens: VO, hints, animations, equations
 game.js      engine: scaling, zoom lock, audio, TTS, sprites, water, flow
 assets/img   the deduplicated Figma assets
 assets/sfx   sound effects
@@ -571,7 +842,7 @@ assets/sfx   sound effects
 
 ## QA: the level jumper
 A **QA · jump** tab sits under the sound buttons, top right. Click it (or press
-**Q**) for a list of all 22 screens; clicking one drops you straight into it with
+**Q**) for a list of all 20 screens; clicking one drops you straight into it with
 the water already at that screen's starting level.
 
 **To remove it** delete three clearly fenced blocks, all marked `QA ONLY`:
@@ -579,7 +850,7 @@ the `#qaPanel` markup in `index.html`, the QA block at the bottom of
 `style.css`, and the `buildQA()` block in `game.js`. Nothing else references it.
 
 ## Playthrough status
-All 22 screens play through end to end with no JavaScript errors, correct water
+All 20 screens play through end to end with no JavaScript errors, correct water
 continuity between screens, and every equation resolving. Verified by an
 automated run that drags the marker to the right answer on each interactive
 screen and checks the panel afterwards.

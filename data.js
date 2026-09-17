@@ -26,6 +26,12 @@
      start       water level the screen opens on   ( === equation.a )
      equation    {a, op, b}  → target is derived, never hand-written
 
+   `b` IS ALWAYS POSITIVE, and the sentence is written WITHOUT BRACKETS —
+   `−2 + 4 = ?`, never `(−2) + (+4) = ?`. The operator means one thing here:
+   + is up the tank, − is down it. Brackets are the notation of the sign rules
+   ("two minuses make a plus"), which this game does not teach and the tank
+   cannot show. Anything added here has to keep `b` positive.
+
    wrong[]   the doc's three escalating tiers  {vo, anim}
    idle      the doc's inactivity prompt        {vo, anim, speaker}
 
@@ -88,7 +94,7 @@ const FLOW = [
   },
 
   {
-    id: 'l1-plus6', chapter: 1, screen: '(+2) to +6', type: 'move',
+    id: 'l1-plus6', chapter: 1, screen: '+2 to +6', type: 'move',
     start: 2, waterTo: 6, target: 6, markerOnly: true, markerStart: 2,
     speaker: 'guddu',
     vo: 'The water level rises 4 levels from +2. Drag the marker to the correct level.',
@@ -130,7 +136,7 @@ const FLOW = [
   },
 
   {
-    id: 'l1-minus1', chapter: 1, screen: '(+3) to −1', type: 'move',
+    id: 'l1-minus1', chapter: 1, screen: '+3 to −1', type: 'move',
     start: 3, waterTo: -1, target: -1, markerOnly: true, markerStart: 3,
     speaker: 'guddu',
     vo: 'The water level comes down 4 levels from +3. Drag the marker to the new water level.',
@@ -144,7 +150,7 @@ const FLOW = [
   },
 
   {
-    id: 'l1-minus4', chapter: 1, screen: '(−1) to −4', type: 'move',
+    id: 'l1-minus4', chapter: 1, screen: '−1 to −4', type: 'move',
     start: -1, waterTo: -4, target: -4, markerOnly: true, markerStart: -1,
     speaker: 'guddu',
     vo: 'The water level comes down 3 levels from −1. Drag the marker to the new water level.',
@@ -168,7 +174,7 @@ const FLOW = [
   },
 
   {
-    id: 'l2-1', chapter: 2, screen: '0 + (+3)', type: 'move',
+    id: 'l2-1', chapter: 2, screen: '0 + 3', type: 'move',
     start: 0, equation: { a: 0, op: '+', b: 3 },
     speaker: 'guddu',
     vo: 'The water level is at 0. It increases by 3 levels. Let’s find the new water level.',
@@ -189,7 +195,7 @@ const FLOW = [
   },
 
   {
-    id: 'l2-2', chapter: 2, screen: '(+2) + (+3)', type: 'move',
+    id: 'l2-2', chapter: 2, screen: '+2 + 3', type: 'move',
     start: 2, equation: { a: 2, op: '+', b: 3 },
     speaker: 'guddu',
     vo: 'Find the new water level.',
@@ -203,7 +209,7 @@ const FLOW = [
   },
 
   {
-    id: 'l2-3', chapter: 2, screen: '(−2) + (+4)', type: 'move',
+    id: 'l2-3', chapter: 2, screen: '−2 + 4', type: 'move',
     start: -2, equation: { a: -2, op: '+', b: 4 },
     speaker: 'guddu',
     /* doc verbatim — the source reads "Water level is increase." */
@@ -217,41 +223,13 @@ const FLOW = [
     idle: { speaker: 'guddu', vo: 'Start at −2 and find the new water level.', anim: 'pulseEquation' }
   },
 
-  {
-    id: 'l2-4', chapter: 2, screen: '(+3) + (−5)', type: 'move',
-    start: 3, equation: { a: 3, op: '+', b: -5 },
-    speaker: 'guddu',
-    vo: 'Your turn! Find the new water level.',
-    correct: 'Correct! The water level comes down from +3 to −2.',
-    wrong: [
-      { vo: 'Check whether the water level should rise or come down.', anim: 'pulseEquation' },
-      { vo: 'Start again from +3 and watch the water level.',          anim: 'resetToStart'  },
-      { vo: 'Count the levels carefully as the water moves.',          anim: 'pulseSpan'     }
-    ],
-    idle: { speaker: 'guddu', vo: 'Start at +3 and find the new water level.', anim: 'pulseEquation' }
-  },
-
-  {
-    id: 'l2-5', chapter: 2, screen: '(−2) + (−3)', type: 'move',
-    start: -2, equation: { a: -2, op: '+', b: -3 },
-    speaker: 'guddu',
-    vo: 'Find the new water level.',
-    correct: 'Correct! The water level comes down from −2 to −5.',
-    wrong: [
-      { vo: 'Check how the water level should change.',               anim: 'pulseStart'   },
-      { vo: 'Start again from −2 and watch the level carefully.',     anim: 'resetToStart' },
-      { vo: 'Count how many levels the water moves.',                 anim: 'pulseSpan'    }
-    ],
-    idle: { speaker: 'guddu', vo: 'Start at −2 and find the new water level.', anim: 'pulseEquation' }
-  },
-
   /* ═════════════ TRANSITION + LEVEL 3 — subtraction (doc "Game") ═════════ */
 
   {
     id: 'g-intro', chapter: 3, chapterName: 'Water Used Up',
     screen: 'Transition', type: 'observe',
-    /* Level 2 ends at −5 and Level 3 opens at 0. The climb happens behind the
-       flood wipe, where nothing is visible, so the cutscene can play the
+    /* Level 2 now ends at +2 and Level 3 opens at 0. The drop happens behind
+       the flood wipe, where nothing is visible, so the cutscene can play the
        downward move the line describes instead of contradicting it. */
     start: 0, to: 0, weather: 'drain',
     speaker: 'guddu',
@@ -259,7 +237,7 @@ const FLOW = [
   },
 
   {
-    id: 'g-1', chapter: 3, screen: '0 − (+3)', type: 'move',
+    id: 'g-1', chapter: 3, screen: '0 − 3', type: 'move',
     start: 0, equation: { a: 0, op: '−', b: 3 },
     speaker: 'guddu',
     vo: 'The water level is at 0. Now 3 levels are used. Let’s find the new water level.',
@@ -273,7 +251,7 @@ const FLOW = [
   },
 
   {
-    id: 'g-2', chapter: 3, screen: '(+4) − (+2)', type: 'move',
+    id: 'g-2', chapter: 3, screen: '+4 − 2', type: 'move',
     start: 4, equation: { a: 4, op: '−', b: 2 },
     speaker: 'guddu',
     vo: 'Now it’s your turn! Find the new water level.',
@@ -287,7 +265,7 @@ const FLOW = [
   },
 
   {
-    id: 'g-3', chapter: 3, screen: '(+2) − (+4)', type: 'move',
+    id: 'g-3', chapter: 3, screen: '+2 − 4', type: 'move',
     start: 2, equation: { a: 2, op: '−', b: 4 },
     speaker: 'guddu',
     vo: 'Find the new water level.',
@@ -301,7 +279,7 @@ const FLOW = [
   },
 
   {
-    id: 'g-4', chapter: 3, screen: '(−1) − (+3)', type: 'move',
+    id: 'g-4', chapter: 3, screen: '−1 − 3', type: 'move',
     start: -1, equation: { a: -1, op: '−', b: 3 },
     speaker: 'guddu',
     vo: 'Your turn! Find the new water level.',
@@ -314,27 +292,14 @@ const FLOW = [
     idle: { speaker: 'guddu', vo: 'Start at −1 and find the new water level.', anim: 'pulseEquation' }
   },
 
-  {
-    id: 'g-5', chapter: 3, screen: '(−3) − (−2)', type: 'move',
-    start: -3, equation: { a: -3, op: '−', b: -2 },
-    speaker: 'guddu',
-    vo: 'Find the new water level.',
-    correct: 'Correct! The water level rises from −3 to −1.',
-    wrong: [
-      { vo: 'Check how the water level should change.',            anim: 'pulseEquation' },
-      { vo: 'Start again from −3 and watch the level carefully.',  anim: 'resetToStart'  },
-      { vo: 'Check how many levels the water needs to move.',      anim: 'pulseSpan'     }
-    ],
-    idle: { speaker: 'guddu', vo: 'Start at −3 and find the new water level.', anim: 'pulseEquation' }
-  },
-
   /* ──────────────────────────────── FINISH ────────────────────────────────
      The doc defines no end screen, but the game needs somewhere to stop.
      This is the ONLY screen whose line is not in the source — replace the VO
      when the doc gets one. */
   {
     id: 'done', chapter: 3, screen: 'Well done', type: 'finish',
-    start: -1, to: -1,
+    /* follows on from g-4, which lands the water on −4 */
+    start: -4, to: -4,
     speaker: 'guddu',
     vo: 'Shabaash! You can now read the water level above and below zero, and calculate it too.'
   }

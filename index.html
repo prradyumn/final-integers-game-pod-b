@@ -237,6 +237,15 @@
            meet in the textbook, and it is the only place the SIZE of the move
            is visible rather than merely spoken. -->
       <svg id="hopFx" viewBox="0 0 714 1084" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <!-- lit along the ribbon, so the arc has a top and a bottom instead
+               of being one flat navy shape -->
+          <linearGradient id="gHop" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0"   stop-color="#1b4fa8"/>
+            <stop offset=".45" stop-color="#0b2a6b"/>
+            <stop offset="1"   stop-color="#061a45"/>
+          </linearGradient>
+        </defs>
         <g id="hopArcs"></g>
       </svg>
       <div id="hopCount" aria-hidden="true"><b id="hopN">0</b><i id="hopDir">▲</i></div>
@@ -317,12 +326,12 @@
          Each box is colour-bound to the thing in the tank it describes: the
          first to the blue-grey start pin, the second to the navy jump arcs,
          the answer to the red marker. The pips under the middle box fill one
-         per jump, so (+4) stops being a number to read and becomes a count to
+         per jump, so the 4 stops being a number to read and becomes a count to
          carry out and check against. -->
     <div id="eqPanel" hidden>
       <div class="eqBox bindStart" id="eqABox"><span id="eqA">0</span></div>
       <span class="eqSym" id="eqOp">+</span>
-      <div class="eqBox bindJump" id="eqBBox"><span id="eqB">(+0)</span>
+      <div class="eqBox bindJump" id="eqBBox"><span id="eqB">0</span>
         <div class="pips" id="eqPips"></div>
       </div>
       <span class="eqSym" id="eqEq">=</span>
@@ -344,12 +353,14 @@
          negative start read as positive. -->
     <div id="answerTiles" hidden></div>
 
-    <!-- ── buttons  (Figma: x1136 y667 260×109) ─────────────────────────── -->
-    <button id="checkBtn" type="button" hidden><span>Check</span></button>
-    <button id="nextBtn"  type="button" hidden><span>Continue</span></button>
+    <!-- ── the one remaining button  (Figma: x1136 y667 260×109) ────────
+         Check and Continue are both gone: a tile tap and a marker coming to
+         rest are the answer, and every screen moves on by itself. The finish
+         screen is the one place that must not, so this is what it shows. -->
+    <button id="nextBtn"  type="button" hidden><span>Play again</span></button>
 
     <!-- ── hud ──────────────────────────────────────────────────────────── -->
-    <div id="chapterTag"><b id="chapterName">The Village Tank</b><i id="stepTag">1 / 22</i></div>
+    <div id="chapterTag"><b id="chapterName">The Village Tank</b><i id="stepTag">1 / 20</i></div>
     <div id="hud">
       <div id="hudBtns">
         <button id="replayBtn" type="button" title="Say it again">&#x21BA;</button>
