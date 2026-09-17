@@ -195,6 +195,16 @@
           <g    id="tickFx"></g>
           <ellipse id="surfRing" fill="none" stroke="#ffffff" stroke-opacity=".8" stroke-width="3"></ellipse>
           <path id="waveLine"  fill="none" stroke="#ffffff" stroke-opacity=".7" stroke-width="3" stroke-linecap="round"></path>
+          <!-- 0 is the reference point the whole lesson turns on, so it is
+               drawn into the tank rather than left to the label on the rail:
+               a faint wash over each zone and a hard line between them. The
+               y positions come from svgYFor(0) in game.js. -->
+          <rect id="zoneAbove" x="0" width="414" fill="#ffffff" fill-opacity=".07"></rect>
+          <rect id="zoneBelow" x="0" width="414" fill="#062a55" fill-opacity=".18"></rect>
+          <g id="zeroBand">
+            <rect id="zeroGlow" x="0" width="414" height="18" fill="#FFF200" fill-opacity=".22"></rect>
+            <rect id="zeroLine" x="0" width="414" height="4" fill="#FFF200" fill-opacity=".95"></rect>
+          </g>
           <rect x="0" y="0" width="414" height="831" fill="url(#gradGlass)"></rect>
         </g>
       </svg>
@@ -214,6 +224,22 @@
            aria-valuemin="-6" aria-valuemax="6" aria-valuenow="0">
         <img src="assets/img/marker-arrow-bold.png" alt="">
       </div>
+
+      <!-- Where this move began. It drops onto the starting level and stays
+           there for the whole screen, so "I started at −2, I am now at +2" is
+           something the learner can see rather than has to remember. Reuses
+           marker-dot-round.png, tinted so it reads as subordinate to the red
+           live marker. -->
+      <img id="startPin" src="assets/img/marker-dot-round.png" alt="" aria-hidden="true">
+
+      <!-- One arc per level crossed, drawn from the start pin to the marker,
+           with a running count. This is the number-line hop the learner will
+           meet in the textbook, and it is the only place the SIZE of the move
+           is visible rather than merely spoken. -->
+      <svg id="hopFx" viewBox="0 0 714 1084" preserveAspectRatio="none" aria-hidden="true">
+        <g id="hopArcs"></g>
+      </svg>
+      <div id="hopCount" aria-hidden="true"><b id="hopN">0</b><i id="hopDir">▲</i></div>
 
       <!-- the ghost nudge: a see-through copy of the marker with a hand on
            it, dragged a short way and released, on a loop, until the learner
@@ -287,14 +313,36 @@
     <!-- ── speech bubble  (Figma: x1222 y101 585×258) ───────────────────── -->
     <div id="bubble"><p id="bubbleText"></p></div>
 
-    <!-- ── equation panel  (Figma: x884 y443 755×200) ───────────────────── -->
+    <!-- ── equation panel  (Figma: x884 y443 755×200) ─────────────────────
+         Each box is colour-bound to the thing in the tank it describes: the
+         first to the blue-grey start pin, the second to the navy jump arcs,
+         the answer to the red marker. The pips under the middle box fill one
+         per jump, so (+4) stops being a number to read and becomes a count to
+         carry out and check against. -->
     <div id="eqPanel" hidden>
-      <div class="eqBox" id="eqABox"><span id="eqA">0</span></div>
+      <div class="eqBox bindStart" id="eqABox"><span id="eqA">0</span></div>
       <span class="eqSym" id="eqOp">+</span>
-      <div class="eqBox" id="eqBBox"><span id="eqB">(+0)</span></div>
+      <div class="eqBox bindJump" id="eqBBox"><span id="eqB">(+0)</span>
+        <div class="pips" id="eqPips"></div>
+      </div>
       <span class="eqSym" id="eqEq">=</span>
-      <div class="eqBox" id="eqRBox"><span id="eqR">?</span></div>
+      <div class="eqBox bindLand" id="eqRBox"><span id="eqR">?</span></div>
     </div>
+
+    <!-- The three roles named, so the sentence reads as the thing the lesson
+         is about: starting point, jumps, landing point. -->
+    <div id="eqRoles" hidden>
+      <b class="bindStart">started at</b>
+      <b class="bindJump">jumped</b>
+      <b class="bindLand">landed on</b>
+    </div>
+
+    <!-- The symbolic step. The gauge is where you work it out; this is where
+         you say what you worked out. Options are generated from the sentence
+         and every wrong one is a real mistake: the start unmoved, the jump
+         taken the wrong way, the jump given instead of the landing, the
+         negative start read as positive. -->
+    <div id="answerTiles" hidden></div>
 
     <!-- ── buttons  (Figma: x1136 y667 260×109) ─────────────────────────── -->
     <button id="checkBtn" type="button" hidden><span>Check</span></button>

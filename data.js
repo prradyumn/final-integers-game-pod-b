@@ -56,7 +56,12 @@ const FLOW = [
     wrong: [
       { vo: 'Look at the water reference level in the centre of the tank.', anim: 'highlightCentre' },
       { vo: 'Look for the level that shows we have sufficient water.',      anim: 'highlightZero'   },
-      { vo: 'Tap 0.',                                                       anim: 'pulseZero'       }
+      /* THE ONE DELIBERATE WORDING CHANGE. The doc's line here is "Tap 0.",
+         left over from when screen 1 was a tap target; the build is a drag
+         throughout, and screens 3-8 of the same doc say "Drag the marker
+         to ...". As written it told the learner to do something the game
+         does not accept. Same structure, the doc's own verb. */
+      { vo: 'Drag the marker to 0.',                                        anim: 'pulseZero'       }
     ],
     idle: { speaker: 'pari', vo: 'Look for the water reference level at 0.', anim: 'pulseZero' }
   },

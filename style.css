@@ -390,6 +390,46 @@ html,body{
   50%    { filter:drop-shadow(0 5px 8px rgba(0,0,0,.35)) drop-shadow(0 0 26px rgba(255,216,100,.98)) }
 }
 
+/* ── the starting point ────────────────────────────────────────────────
+   A second, quieter marker that stays where this move began. Blue-grey so it
+   never competes with the red one you drag: hue-rotated from the same red
+   artwork rather than needing its own asset. */
+#startPin{
+  position:absolute; left:126px; width:66px; height:53px; margin-top:-26.5px;
+  pointer-events:none; z-index:5; opacity:0;
+  filter:drop-shadow(0 3px 5px rgba(0,0,0,.3)) grayscale(.55) brightness(.92)
+         sepia(.9) hue-rotate(160deg) saturate(2.6);
+  transition:opacity .3s ease, top .14s cubic-bezier(.22,.8,.26,1);
+}
+#startPin.show{ opacity:.92; }
+
+/* ── the jumps ─────────────────────────────────────────────────────────
+   One arc per level crossed, navy on a white halo so it holds over pale
+   glass and over blue water alike, and a count beside them. */
+#hopFx{
+  position:absolute; left:0; top:0; width:714px; height:1084px;
+  pointer-events:none; z-index:4;
+}
+#hopArcs .halo{ fill:none; stroke:#ffffff; stroke-opacity:.9; stroke-width:14;
+                stroke-linecap:round; }
+#hopArcs .ink { fill:none; stroke:#0b2a6b; stroke-width:6; stroke-linecap:round; }
+#hopArcs .head{ fill:#0b2a6b; stroke:#ffffff; stroke-width:3; stroke-linejoin:round; }
+#hopArcs .pop { animation:hopIn .26s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes hopIn{ from{ opacity:0; transform:translateX(-10px) } to{ opacity:1; transform:none } }
+
+#hopCount{
+  position:absolute; left:400px; width:126px; height:54px; margin-top:-27px;
+  display:none; align-items:center; justify-content:center; gap:7px;
+  border-radius:28px; background:rgba(255,255,255,.94);
+  box-shadow:0 4px 12px rgba(4,25,70,.3), inset 0 0 0 3px rgba(11,42,107,.85);
+  pointer-events:none; z-index:5;
+  transition:top .18s cubic-bezier(.22,.8,.26,1);
+}
+#hopCount.show{ display:flex; }
+#hopCount b{ font:800 34px/1 var(--font); color:#0b2a6b; }
+#hopCount i{ font:800 26px/1 var(--font); font-style:normal; color:#b8600a; }
+#hopCount.down i{ color:#0d63b8; }
+
 /* ── draggable marker (x318 → tank-local 115) ─────────────────────────── */
 #marker{
   position:absolute; left:115px; width:88px; height:79px; margin-top:-39.5px;
@@ -567,8 +607,68 @@ html,body{
 @keyframes eqPulse{ 0%,100%{ filter:none } 50%{ filter:drop-shadow(0 0 22px rgba(255,205,0,.95)) } }
 
 /* ── buttons ──────────────────────────────────────────────────────────── */
+/* ── binding the sentence to the tank ──────────────────────────────────
+   One colour per role, matched to the object in the tank that carries it:
+   blue-grey = the start pin, navy = the jump arcs, red = the marker. Three
+   symbols, three things you can point at. */
+:root{ --cStart:#3c6e8f; --cJump:#0b2a6b; --cLand:#c0392b; }
+
+.bindStart{ --bind:var(--cStart); }
+.bindJump { --bind:var(--cJump);  }
+.bindLand { --bind:var(--cLand);  }
+.eqBox.bindStart, .eqBox.bindJump, .eqBox.bindLand{
+  box-shadow:inset 0 0 0 4px var(--bind), 0 4px 10px rgba(6,25,60,.18);
+}
+
+/* one pip per level the sentence asks you to jump; they fill as you jump */
+.pips{
+  position:absolute; left:0; right:0; bottom:13px;
+  display:flex; justify-content:center; gap:7px; pointer-events:none;
+}
+.pips i{
+  width:13px; height:13px; border-radius:50%;
+  background:rgba(11,42,107,.16); box-shadow:inset 0 0 0 2px rgba(11,42,107,.45);
+  transition:background-color .18s ease, transform .18s ease;
+}
+.pips i.on{ background:var(--cJump); transform:scale(1.18); }
+
+#eqRoles{
+  position:absolute; left:884px; top:650px; width:755px; height:30px;
+  pointer-events:none;
+}
+#eqRoles[hidden]{ display:none; }
+#eqRoles b{
+  position:absolute; width:190px; text-align:center;
+  font:700 21px/30px var(--font); color:var(--bind); opacity:.92;
+}
+#eqRoles b:nth-child(1){ left:14px;  }   /* under the first box  */
+#eqRoles b:nth-child(2){ left:267px; }   /* under the middle box */
+#eqRoles b:nth-child(3){ left:510px; }   /* under the answer box */
+
+/* ── the answer tiles ─────────────────────────────────────────────────── */
+#answerTiles{
+  position:absolute; left:884px; top:700px; width:755px; height:116px;
+  display:flex; align-items:center; justify-content:center; gap:16px;
+}
+#answerTiles[hidden]{ display:none; }
+#answerTiles button{
+  width:124px; height:106px; border:0; padding:0; cursor:pointer;
+  border-radius:20px; background:#fffdf6;
+  box-shadow:inset 0 0 0 4px #d9c9a4, 0 5px 12px rgba(6,25,60,.22);
+  font:800 46px/1 var(--font); color:var(--ink);
+  transition:transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+#answerTiles button:hover{ transform:translateY(-4px); }
+#answerTiles button.pick{
+  background:#fff3d6; color:var(--cLand);
+  box-shadow:inset 0 0 0 5px var(--cLand), 0 8px 18px rgba(192,57,43,.3);
+  transform:translateY(-4px) scale(1.04);
+}
+#answerTiles button:disabled{ cursor:default; transform:none; }
+#answerTiles.locked button:not(.pick){ opacity:.45; }
+
 #checkBtn,#nextBtn{
-  position:absolute; left:1136px; top:667px; width:260px; height:109px;
+  position:absolute; left:1136px; top:840px; width:260px; height:109px;
   border:0; padding:0; background:transparent; cursor:pointer;
   background-image:url("assets/img/button-pill-blue.png");
   background-size:100% 100%; background-repeat:no-repeat;

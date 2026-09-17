@@ -98,8 +98,15 @@ All SVG, no sprites.
   gesture thickens and sustains the column. The loop volume follows it too.
 * **Impact.** The stream pushes a dimple into the surface, lays down an
   aeration patch, and sends rings travelling out to the glass walls.
-* **The outflow goes somewhere.** It leaves the elbow, arcs out past the tank
-  and lands in the river, throwing splash droplets and spreading ripple rings.
+* **The outflow goes somewhere.** It leaves the elbow at full bore, arcs out
+  past the tank and lands in the river, throwing splash droplets and spreading
+  ripple rings. Two things matter for it not to read as a thin ribbon: the jet
+  is **as wide as the hole it comes out of** (the mouth of
+  `pipe-outlet-elbow.png` measures 47.8 CSS px across; `OUT_BORE` in game.js),
+  and the ribbon's edges are offset **perpendicular to the flow**. The mouth
+  points down-right at about 45°, so an offset applied horizontally points
+  almost *along* the stream rather than across it, and the jet collapses to a
+  fraction of its width however wide you make it.
 * **Tick-crossing flash.** Every time the surface passes a tick a quick
   horizontal ripple flashes at that tick — the counting is visible in the water,
   not only on the marker.
@@ -214,6 +221,19 @@ element at them:
 | `ripple-ring.png` | 512×128 | the surface and river ring ellipses |
 | `droplet.png` | 64×96 | the drip ellipses |
 
+## Signs, not words
+
+Everything on screen shows the sign itself — `+2`, `−1`, `(−3)` — and never the
+word. All 41 signed lines use U+002B and U+2212; the gauge labels go through the
+same `fmt()` as the equation panel, so `−3` on the scale and `(−3)` in the
+sentence are the same glyph.
+
+A speech engine cannot pronounce a glyph, though: `−1` comes out as "one" or as
+nothing, and `+2` is read inconsistently across engines. So `speakable()` spells
+both signs out **on their way to the engine and only there** — the bubble keeps
+the flow doc's text exactly as written. It used to substitute `−` alone, which
+left every `+` unspoken.
+
 ## Audio
 * **Narration** — Web Speech API, rate 0.84, picking the warmest installed voice
   (Rishi on macOS, else Daniel / Alex / Google UK English Male).
@@ -271,7 +291,8 @@ Three layers, escalating only if the one before it is ignored:
    and glows, because a thing that changes size reads as grabbable and a thing
    that only changes colour reads as decoration. It keeps going until the
    marker is touched, not for a fixed few seconds.
-2. **A ghost hand drags it.** After `GHOST_ARM` (2.6 s) of nothing, a
+2. **A ghost hand drags it.** After `GHOST_ARM` (2.6 s) of nothing — or
+   `GHOST_ARM_FIRST` (0.5 s) on the very first question, see below — a
    see-through copy of the marker is pressed, dragged `GHOST_TRAVEL`
    (1.6 levels) and released, on a loop. It demonstrates the *gesture*, never
    the answer: it always travels the same short distance whichever way the
@@ -283,6 +304,13 @@ Three layers, escalating only if the one before it is ignored:
 
 Pressing Check without ever moving the marker also re-offers the hand; getting
 it wrong after dragging does not.
+
+**The first question gets the hand at once.** Screen 1's line is *"Find 0, the
+level that shows sufficient water."* — it never mentions a marker or dragging,
+and the doc's third hint for it is still the tap-era *"Tap 0."*, so the learner
+is told nothing about how to act. Every later screen says *"Drag the water level
+marker"* outright, and there the 2.6 s wait is the point: it gives them a chance
+to follow the instruction before being nudged.
 
 The hand is `assets/img/hand-nudge.png`, cropped in CSS to the hand alone —
 the artwork carries blue motion arcs that read as sideways movement, and this
@@ -463,8 +491,9 @@ right-hand side.
 
 ## Lines that came out, and one the doc gets wrong
 
-Everything spoken or written on screen is now the doc's own wording. These were
-written for the game and have been removed:
+Everything spoken or written on screen is the doc's own wording, with a single
+marked exception (screen 1's third hint, below). These were written for the game
+and have been removed:
 
 | Removed | Was |
 | --- | --- |
@@ -477,13 +506,56 @@ Two places where the source itself needs a look:
 
 * **`(−2) + (+4)`** — the doc's VO is *"Water level is increase. Find the new
   water level."* It is transcribed verbatim and read aloud as written.
-* **Screen 1** — the doc says *"Learner taps 0"* and its third hint is
-  *"Tap 0."*, but from screen 3 onward it says *"Drag the water level marker"*.
-  The build is a drag throughout, so that one hint tells the learner to do
-  something the game does not accept.
+* **Screen 1** — the doc says *"Learner taps 0"* and its third hint was
+  *"Tap 0."*, left over from when that screen was a tap target; from screen 3
+  onward the same doc says *"Drag the marker to ..."*. As written it told the
+  learner to do something the game does not accept, so it now reads **"Drag the
+  marker to 0."** — same structure, the doc's own verb. This is the **only**
+  wording in the game that differs from the source, and it is marked as such in
+  data.js. Change the doc and the comment comes out.
 
 The finish screen is the only screen with no doc entry at all; the game needs
 somewhere to stop, so its line is a placeholder.
+
+## What the tank shows about the maths
+
+Three of the four learning objectives were being carried by narration alone —
+the tank itself showed only *where the water is*, never where the move began or
+how far it travelled. These make them visible. No new artwork was needed: the
+start pin reuses `marker-dot-round.png`, which was already in the repo unused.
+
+**The zero band.** 0 is the reference point the whole lesson turns on, so it is
+drawn into the tank rather than left to a label on the rail: a wash over the
+above-zero zone, a darker one below, and a hard yellow line between them. It
+covers the empty glass as well as the water, so the two *zones* read even when
+the water is nowhere near 0. Positioned from `svgYFor(0)`, so it follows the
+scale rather than being hand-placed.
+
+**The start pin.** A second, quieter marker drops onto the level a move began
+from and stays there for the whole screen — blue-grey, hue-rotated off the same
+red artwork so it never competes with the marker you drag. "I started at −2, I
+am now at +2" becomes something the learner can see instead of something they
+have to hold in their head, which is the objective it exists for.
+
+**The jumps.** One arc per level crossed, drawn from the pin to the marker, with
+a running count beside them (`4 ▲`). This is the number-line hop the learner
+will meet in the textbook, and it is the only place the *size* of a move is
+visible rather than merely spoken. The whole chain is rebuilt from
+`(start, current)` on every change, so dragging back and forth stays honest.
+
+Two details that matter for it to read as hops rather than as a wavy line: the
+bulge is close to the step height, so each arc is near-semicircular, and there
+is a gap at both ends so consecutive arcs do not fuse. `HOP_X`, `HOP_BULGE` and
+`HOP_GAP` at the top of the `Hops` block in game.js.
+
+### Still to come
+
+The remaining gaps are in the *question* layer rather than the visuals: nothing
+yet asks the learner to mark the start themselves, to give the number of jumps,
+or to build the sentence from the action. Those need new screen types
+(`markStart`, `count`, `predict`, `build`) **and VO copy written into the flow
+doc** — the doc is the source of every line in this build, and these would be
+the first screens without one.
 
 ## Files
 ```

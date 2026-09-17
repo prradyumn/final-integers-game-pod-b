@@ -42,6 +42,11 @@ const tankEl   = $('#tank');
 const gaugeEl  = $('#gauge');
 const markerEl = $('#marker');
 const ghostEl  = $('#ghost');
+const startPin = $('#startPin');
+const hopArcs  = $('#hopArcs');
+const hopCount = $('#hopCount');
+const hopN     = $('#hopN');
+const hopDir   = $('#hopDir');
 const waveFront= $('#waveFront');
 const waveBack = $('#waveBack');
 const waveLine = $('#waveLine');
@@ -67,6 +72,9 @@ const bubbleEl = $('#bubble');
 const bubbleTx = $('#bubbleText');
 const eqPanel  = $('#eqPanel');
 const eqA = $('#eqA'), eqOp = $('#eqOp'), eqB = $('#eqB'), eqR = $('#eqR');
+const eqPips  = $('#eqPips');
+const eqRoles = $('#eqRoles');
+const tilesEl = $('#answerTiles');
 const surfRing = $('#surfRing');
 const checkBtn = $('#checkBtn');
 const nextBtn  = $('#nextBtn');
@@ -220,6 +228,15 @@ const Audio_ = {
 };
 
 /* ═══════════════════ 3 · narration (Web Speech) ══════════════════════ */
+/* Everything on screen shows the signs themselves — +2, −1, (−3) — and never
+   the words. A speech engine cannot pronounce a glyph, though: "−1" comes out
+   as "one" or as nothing at all, and "+2" is read inconsistently across
+   engines. So the signs are spelled out on their way to the engine and ONLY
+   there. The bubble keeps the text exactly as the flow doc wrote it. */
+const speakable = t => t
+  .replace(/\u2212\s*(\d)/g, 'minus $1')
+  .replace(/\+\s*(\d)/g,      'plus $1');
+
 const VO = {
   voices:[], guddu:null, pari:null, speaking:false, keepAlive:null,
   supported: 'speechSynthesis' in window,
@@ -258,7 +275,7 @@ const VO = {
         setTimeout(() => { who.talk(false); resolve(); }, ms);
         return;
       }
-      const u = new SpeechSynthesisUtterance(text.replace(/−/g, 'minus '));
+      const u = new SpeechSynthesisUtterance(speakable(text));
       const v = speaker === 'pari' ? this.pari : this.guddu;
       if (v) { u.voice = v; u.lang = v.lang; }
       u.rate  = 0.84;                       // slow and clear, on purpose
@@ -529,6 +546,10 @@ const Water = {
    column runs while water is moving, then it breaks up and one last drop
    falls. Strength tracks how fast the learner is dragging, so one level is a
    spurt and four levels in one gesture is a proper pour.                  */
+/* bore diameters measured off the pipe artwork, in CSS px:
+     pipe-inlet-s-bend  57.0 across    pipe-outlet-elbow  47.8 across */
+const OUT_BORE = 47.8;
+
 const Flow = {
   /* Both origins sit at the CENTROID OF THE BORE, measured off the pipe
      artwork, not at the lip: the pipes paint above these layers, so the top
@@ -696,20 +717,50 @@ const Flow = {
     const sx = this.DRAIN.x + this.TANK_X, sy = this.DRAIN.y + this.TANK_Y;
     const ex = this.RIVER.x, ey = this.RIVER.y;
     const wob = Math.sin(this.t * 2.2) * 3;
-    const w0 = (10 + this.strength * 7) * this.vis;
-    const w1 = w0 * 1.35;
-    const cx1 = sx + 34, cy1 = sy + 12;
-    const cx2 = ex - 18, cy2 = ey - 90;
+
+    /* Full bore. The mouth of pipe-outlet-elbow.png measures 47.8 CSS px
+       across, so the jet leaves the same width as the pipe and only spreads
+       as it falls. It used to be 34px at full strength — narrower than the
+       hole it came out of. */
+    const h0 = (OUT_BORE / 2) * (0.84 + this.strength * 0.16) * this.vis;
+    const h1 = h0 * 1.22;
+
+    /* The mouth points down-right at about 45 degrees, so the jet leaves at
+       45 and only then falls vertically into the river. */
+    const cx1 = sx + 30, cy1 = sy + 30;
+    const cx2 = ex - 20, cy2 = ey - 80;
+
+    /* Offset PERPENDICULAR to the flow. The old path offset the mouth end by
+       (+/-w, +/-0.4w), which on a 45 degree jet points almost ALONG the
+       stream rather than across it — the ribbon collapsed to a fraction of
+       its width and read as a thin strip however wide w was made. */
+    const perp = (ax, ay, bx, by) => {
+      const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1;
+      return [-dy / L, dx / L];
+    };
+    const [ax0, ay0] = perp(sx, sy, cx1, cy1);       // across the mouth
+    const [ax1, ay1] = perp(cx2, cy2, ex, ey);       // across the landing
+
+    const P = (x, y) => x.toFixed(1) + ',' + y.toFixed(1);
     colOut.setAttribute('d',
-      `M${sx-w0},${sy-w0*0.4} C${cx1-w0+wob},${cy1} ${cx2-w1+wob},${cy2} ${ex-w1+wob},${ey}
-       L${ex+w1+wob},${ey} C${cx2+w1+wob},${cy2} ${cx1+w0+wob},${cy1} ${sx+w0},${sy+w0*0.4} Z`);
+      'M' + P(sx - ax0*h0, sy - ay0*h0) +
+      ' C' + P(cx1 - ax0*h0 + wob, cy1 - ay0*h0) +
+      ' '  + P(cx2 - ax1*h1 + wob, cy2 - ay1*h1) +
+      ' '  + P(ex  - ax1*h1 + wob, ey  - ay1*h1) +
+      ' L' + P(ex  + ax1*h1 + wob, ey  + ay1*h1) +
+      ' C' + P(cx2 + ax1*h1 + wob, cy2 + ay1*h1) +
+      ' '  + P(cx1 + ax0*h0 + wob, cy1 + ay0*h0) +
+      ' '  + P(sx  + ax0*h0,       sy  + ay0*h0) + ' Z');
     colOutHi.setAttribute('d',
-      `M${sx-w0*0.3},${sy} C${cx1-w0*0.3+wob},${cy1} ${cx2-w1*0.4+wob},${cy2} ${ex-w1*0.4+wob},${ey-10}`);
+      'M' + P(sx - ax0*h0*0.34, sy - ay0*h0*0.34) +
+      ' C' + P(cx1 - ax0*h0*0.34 + wob, cy1 - ay0*h0*0.34) +
+      ' '  + P(cx2 - ax1*h1*0.40 + wob, cy2 - ay1*h1*0.40) +
+      ' '  + P(ex  - ax1*h1*0.40 + wob, ey  - ay1*h1*0.40 - 10));
     colOutHi.setAttribute('stroke-dashoffset', this.dash.toFixed(1));
 
     /* keep the river churning while it pours */
     this._splashT = (this._splashT || 0) + 16;
-    if (this._splashT > 240){ this._splashT = 0; this.splashAt(ex + wob, ey, 4); }
+    if (this._splashT > 200){ this._splashT = 0; this.splashAt(ex + wob, ey, 7); }
   },
 
   moveDrips(dt){
@@ -793,6 +844,82 @@ const Rain = {
 };
 
 /* ═══════════════════ 6 · gauge ═══════════════════════════════════════ */
+/* 0 is the reference the whole lesson turns on, so it is drawn into the tank:
+   a wash over each zone and a hard line between them, placed from svgYFor(0)
+   so it follows the scale rather than being hand-positioned. */
+function buildZeroBand(){
+  const z = svgYFor(0);
+  $('#zoneAbove').setAttribute('y', 0);
+  $('#zoneAbove').setAttribute('height', z.toFixed(1));
+  $('#zoneBelow').setAttribute('y', z.toFixed(1));
+  $('#zoneBelow').setAttribute('height', (SVG_H - z).toFixed(1));
+  $('#zeroGlow').setAttribute('y', (z - 7).toFixed(1));
+  $('#zeroLine').setAttribute('y', (z - 1.5).toFixed(1));
+}
+
+/* ═══════════ 6c · the starting point, and the jumps from it ═══════════
+   Two of the four learning objectives are about things the tank never used
+   to show: WHERE THIS MOVE BEGAN, and HOW MANY LEVELS it has covered. The
+   pin stays put at the start; one arc is drawn per level crossed, with a
+   running count beside them. Both are rebuilt from (start, current) on every
+   change, so dragging back and forth stays honest.                        */
+/* A hop has to read as a hop. Bulge close to the step height makes each one
+   near-semicircular, and a gap at both ends keeps consecutive arcs from
+   fusing into a single wavy line — which is exactly what a thin arc drawn
+   tick-to-tick looks like. */
+const HOP_X = 326, HOP_BULGE = 50, HOP_GAP = 6;
+
+const Hops = {
+  from: null,
+
+  begin(lv){
+    this.from = lv;
+    startPin.style.top = tankYFor(lv) + 'px';
+    startPin.classList.add('show');
+    this.render(lv);
+  },
+
+  clear(){
+    this.from = null;
+    startPin.classList.remove('show');
+    hopArcs.textContent = '';
+    hopCount.classList.remove('show');
+  },
+
+  render(to){
+    if (this.from === null) return;
+    const n = Math.abs(to - this.from);
+    hopArcs.textContent = '';
+    if (!n){ hopCount.classList.remove('show'); return; }
+
+    const dir = to > this.from ? 1 : -1;
+    for (let k = 0; k < n; k++){
+      const a = tankYFor(this.from + k * dir);
+      const b = tankYFor(this.from + (k + 1) * dir);
+      const y1 = a - HOP_GAP * dir, y2 = b + HOP_GAP * dir;   // leave the gap
+      const d  = `M${HOP_X},${y1.toFixed(1)}`
+               + ` C${HOP_X + HOP_BULGE},${y1.toFixed(1)}`
+               + ` ${HOP_X + HOP_BULGE},${y2.toFixed(1)}`
+               + ` ${HOP_X},${y2.toFixed(1)}`;
+      const g  = mk('g', { class: k === n - 1 ? 'pop' : '' });
+      g.appendChild(mk('path', { class:'halo', d }));
+      g.appendChild(mk('path', { class:'ink',  d }));
+      if (k === n - 1){
+        const t = 15 * dir;
+        g.appendChild(mk('path', { class:'head',
+          d:`M${HOP_X},${(y2 - t * 0.35).toFixed(1)} l11,${t.toFixed(1)} l-22,0 Z` }));
+      }
+      hopArcs.appendChild(g);
+    }
+    hopN.textContent = n;
+    hopDir.textContent = dir > 0 ? '\u25B2' : '\u25BC';
+    hopCount.classList.toggle('down', dir < 0);
+    const mid = (tankYFor(this.from) + tankYFor(to)) / 2, zero = tankYFor(0);
+    hopCount.style.top = (Math.abs(mid - zero) < 34 ? mid + 40 * dir : mid) + 'px';
+    hopCount.classList.add('show');
+  }
+};
+
 const rows = {};
 function buildGauge(){
   gaugeEl.style.setProperty('--step', STEP_PX + 'px');
@@ -844,15 +971,23 @@ function markCorrect(lv){
    is. It starts a couple of seconds into a screen and stops for good the
    moment the learner touches the marker.                                  */
 const GHOST_ARM   = 2600;    // quiet time before the hand turns up
+/* Screen 1 is the exception. Its line — "Find 0, the level that shows
+   sufficient water." — never mentions a marker or dragging, and the doc's
+   third hint for it is still the tap-era "Tap 0.", so the learner is told
+   nothing at all about how to act. Every later screen says "Drag the water
+   level marker" outright, and there the wait is the point: it gives them a
+   chance to follow the instruction before being nudged. So the hand arrives
+   at once while nothing has been answered yet, and waits from then on. */
+const GHOST_ARM_FIRST = 500;
 const GHOST_TRAVEL= 1.6;     // levels it drags — a gesture, not an answer
 
 const Ghost = {
   timer: null, running: false,
 
-  arm(){
+  arm(ms){
     this.stop();
     if (!Game.interactive || Game.touched) return;
-    this.timer = setTimeout(() => this.play(), GHOST_ARM);
+    this.timer = setTimeout(() => this.play(), ms === undefined ? GHOST_ARM : ms);
   },
 
   play(){
@@ -890,6 +1025,7 @@ const Mover = {
       Water.set(next, STEP_MS);
       Water.slosh = Math.min(1, Water.slosh + 0.55);
       placeMarker(next);
+      Hops.render(next);
       Audio_.play('step'); Audio_.blip('tick');
       if (dir > 0){ Flow.setIn(true); Flow.setOut(false); }
       else        { Flow.setOut(true); Flow.setIn(false); }
@@ -959,16 +1095,70 @@ const wrap = n => '(' + fmt(n) + ')';
    left. The answer box shows whatever level they are currently on, which is
    their proposed answer, and turns green when it is committed and correct. */
 function renderEquation(step, level, solved){
-  if (!step.equation){ eqPanel.hidden = true; return; }
-  eqPanel.hidden = false;
+  if (!step.equation){ eqPanel.hidden = eqRoles.hidden = true; return; }
+  eqPanel.hidden = eqRoles.hidden = false;
   const { a, op, b } = step.equation;
   eqA.textContent  = a === 0 ? '0' : wrap(a);
   eqOp.textContent = op;
   eqB.textContent  = wrap(b);
-  eqR.textContent  = (solved || level !== a) ? fmt(level) : '?';
+  /* the answer box now says what the learner CHOSE, not where they happen to
+     be standing — the gauge is for working it out, the tile is for saying it */
+  eqR.textContent  = solved ? fmt(step.target)
+                   : (Game.answer === null ? '?' : fmt(Game.answer));
   eqPanel.classList.toggle('solved', !!solved);
   eqR.classList.add('bump');
   setTimeout(() => eqR.classList.remove('bump'), 190);
+}
+
+/* ═══════════ 8b · the symbolic step ══════════════════════════════════
+   The tank has shown the jump; this is where the learner says where it
+   landed. Every wrong option is a real mistake rather than a random number,
+   so a wrong tap says something: the start left unmoved, the jump taken the
+   wrong way, the jump given instead of the landing, or a negative start read
+   as though it were positive.                                            */
+function answerOptions(step, i){
+  const { a, op, b } = step.equation, t = step.target;
+  const wrongWay   = op === '+' ? a - b : a + b;
+  const signIgnored= Math.abs(a) + (op === '+' ? b : -b);
+  const cand = [a, wrongWay, signIgnored, op === '+' ? b : -b, t + 1, t - 1];
+  const out = [t];
+  for (const v of cand){
+    if (out.length >= 4) break;
+    if (v !== t && !out.includes(v) && v >= GAUGE_MIN && v <= GAUGE_MAX) out.push(v);
+  }
+  /* shuffled, but deterministically per screen so a retry is not a new puzzle */
+  let seed = (i + 7) * 2654435761 % 2147483647;
+  const rnd = () => (seed = seed * 48271 % 2147483647) / 2147483647;
+  for (let k = out.length - 1; k > 0; k--){
+    const j = Math.floor(rnd() * (k + 1));
+    [out[k], out[j]] = [out[j], out[k]];
+  }
+  return out;
+}
+
+function buildTiles(step, i){
+  tilesEl.textContent = '';
+  tilesEl.classList.remove('locked');
+  if (!step.equation){ tilesEl.hidden = true; return; }
+  tilesEl.hidden = false;
+  answerOptions(step, i).forEach(v => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = fmt(v); b.dataset.v = v;
+    b.addEventListener('click', () => Game.pick(v));
+    tilesEl.appendChild(b);
+  });
+}
+
+/* one pip per level the sentence asks for, filling as the learner jumps */
+function renderPips(step, jumped){
+  eqPips.textContent = '';
+  if (!step.equation) return;
+  const need = Math.abs(step.equation.b);
+  for (let k = 0; k < need; k++){
+    const i = document.createElement('i');
+    if (k < jumped) i.className = 'on';
+    eqPips.appendChild(i);
+  }
 }
 
 
@@ -1077,6 +1267,7 @@ const Game = {
   asked: 0, firstTry: 0, autoTimer: null,
   wrongCount: 0, idleTimer: null, solved: false,
   touched: false,               // has the learner grabbed the marker on this screen
+  answer: null,                 // the level the learner has NAMED, via a tile
 
   /* every run of show() carries a number; anything that was awaiting when a
      new screen starts sees a stale one and drops out instead of stamping
@@ -1127,7 +1318,7 @@ const Game = {
   async start(){
     Audio_.init();
     Audio_.want('ambient', true); Audio_.play('ambient');
-    Water.init(); Rain.build(); buildGauge(); Flood.init(); Guddu.preload();
+    Water.init(); Rain.build(); buildGauge(); buildZeroBand(); Flood.init(); Guddu.preload();
     markerEl.setAttribute('aria-valuemin', GAUGE_MIN);
     markerEl.setAttribute('aria-valuemax', GAUGE_MAX);
     applyLayout();
@@ -1164,7 +1355,8 @@ const Game = {
     const s = this.step = FLOW[i];
     this.wrongCount = 0; this.solved = false;
     this.interactive = false;
-    this.touched = false; Ghost.stop();
+    this.touched = false; Ghost.stop(); Hops.clear();
+    this.answer = null; buildTiles(s, i); renderPips(s, 0);
     this.heldAuto = 0; this.heldNext = false;
     Flow.want(null);                          // never inherit a running pipe
     clearTimeout(this.idleTimer); clearTimeout(this.autoTimer); clearHints();
@@ -1247,8 +1439,9 @@ const Game = {
     tankEl.classList.remove('locked');
     this.interactive = true;
     if (s.type === 'move'){ checkBtn.hidden = false; checkBtn.disabled = false; }
+    Hops.begin(this.level);               // this is where the move began
     markerEl.classList.add('hintGlow');   // keeps inviting until it is grabbed
-    Ghost.arm();
+    Ghost.arm(this.asked === 0 ? GHOST_ARM_FIRST : GHOST_ARM);
     if (typeof s.target === 'number'){
       const from = (typeof s.markerStart === 'number') ? s.markerStart : s.start;
       if (s.target > from) Flow.cue('in');
@@ -1297,7 +1490,21 @@ const Game = {
   onMoveSettled(){
     if (!this.interactive) return;
     const from = (typeof this.step.markerStart === 'number') ? this.step.markerStart : this.step.start;
-    checkBtn.classList.toggle('ready', this.level !== from);
+    checkBtn.classList.toggle('ready',
+      this.step.equation ? this.answer !== null : this.level !== from);
+    this.poke();
+  },
+
+  /* the symbolic commitment: the learner names where they landed */
+  pick(v){
+    if (!this.interactive) return;
+    this.answer = v;
+    [...tilesEl.children].forEach(b =>
+      b.classList.toggle('pick', Number(b.dataset.v) === v));
+    renderEquation(this.step, this.level, false);
+    checkBtn.classList.add('ready');
+    Audio_.blip('tick');
+    this.touched = true; Ghost.stop();
     this.poke();
   },
 
@@ -1318,6 +1525,8 @@ const Game = {
       clearTimeout(this._flowOff);
       this._flowOff = setTimeout(() => Flow.want(null), 520);
     }
+    Hops.render(lv);
+    if (this.step.equation) renderPips(this.step, Math.abs(lv - this.step.start));
     this.onLevelChanged(lv);
   },
 
@@ -1334,7 +1543,8 @@ const Game = {
     checkBtn.disabled = true; checkBtn.classList.remove('ready');
     clearTimeout(this.idleTimer);
     await wait(180);
-    if (this.level === this.step.target) this.correct();
+    const given = this.step.equation ? this.answer : this.level;
+    if (given === this.step.target) this.correct();
     else this.wrong();
   },
 
@@ -1350,6 +1560,8 @@ const Game = {
     stage.classList.add('celebrate');
     setTimeout(() => stage.classList.remove('celebrate'), 1000);
     Water.slosh = 1;
+    tilesEl.classList.add('locked');
+    [...tilesEl.children].forEach(b => b.disabled = true);
     markCorrect(this.level);
     renderEquation(this.step, this.level, true);
     await say(this.step.correct, 'guddu', 'good');
