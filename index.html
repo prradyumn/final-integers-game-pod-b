@@ -17,6 +17,17 @@
 <link rel="preload" href="assets/fonts/poppins-500.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="preload" as="image" href="assets/scenes/01.webp" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+/* A refresh must start the story again, not drop the reader back where they
+   were. This page is scroll-driven, so the browser's own scroll restoration
+   ("auto" by default) puts them mid-story - measured: reload at scene 7 came
+   back at scene 7 with the gate showing over it.
+
+   This sits in <head>, inline and before anything else, because restoration
+   happens as the document loads: set from a deferred or body script it is
+   already too late. */
+try { history.scrollRestoration = 'manual'; } catch (e) {}
+</script>
 </head>
 <body>
 

@@ -41,6 +41,27 @@
   let returnTo = null;
   let frame = null;
 
+  /* ──────────────────── always start at the beginning ──────────────────
+     history.scrollRestoration is set in index.html's <head>, which stops the
+     browser putting the reader back mid-story on a refresh. These two cover
+     what that cannot:
+
+       * a belt-and-braces scroll to 0 once everything has laid out, in case
+         anything else (an anchor, a restored form control) moved it;
+       * the back/forward cache, which hands back the whole live page - gate
+         dismissed, audio mid-line, scene 7 on screen. There is no clean way
+         to rewind that in place, so it is reloaded, and the reload starts at
+         the beginning like any other.                                       */
+  (() => {
+    const toTop = () => window.scrollTo(0, 0);
+    toTop();
+    window.addEventListener('load', toTop);
+    window.addEventListener('pageshow', e => {
+      if (e && e.persisted) location.reload();
+      else toTop();
+    });
+  })();
+
   /* ─────────────────────── audio format ────────────────────────────────
      Every line exists as both .ogg (Opus, roughly 40% of the size) and .mp3.
      app.js sets `vo.src` from STORY[i].audio, so the choice is made here by

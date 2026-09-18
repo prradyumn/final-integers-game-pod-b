@@ -20,6 +20,16 @@ back up after `AUTO_RESUME_MS` (2.6 s) from wherever they stopped. The space
 bar is a real pause, held until pressed again, and the game overlay holds it
 too so the story cannot scroll on behind it.
 
+**A refresh starts the story over.** This page is driven by scroll position, so
+the browser's own scroll restoration would drop the reader back mid-story -
+measured: reloading at scene 7 came back at scene 7, with the gate showing over
+it. `history.scrollRestoration` is set to `manual` in an inline `<head>` script
+(restoration happens as the document loads, so a deferred or body script is
+already too late), and `bridge.js` scrolls to the top on `load`. A page handed
+back by the back/forward cache is reloaded outright, because it returns live -
+gate dismissed, audio mid-line - and there is no clean way to rewind that in
+place.
+
 There is also a **Game** button in the bar at the bottom, which goes straight
 into the game from anywhere and returns the reader to where they left off.
 
