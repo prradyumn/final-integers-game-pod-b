@@ -39,6 +39,21 @@ const AUTO_OBSERVE = 1100;
 const COMMIT_MS    = 900;
 const AUTO_CORRECT = 2200;
 
+/* ─────────────────────── embedded in the storybook? ──────────────────────
+   The storybook hosts this game in an iframe, so that each keeps its own
+   document. That matters more than it sounds: this file locks scrolling to
+   0,0 on every scroll event AND on a 500ms interval, which is right for a
+   fixed 1920x1080 stage and fatal for a page the reader is meant to scroll.
+   In its own frame the lock only ever applies to the game.
+
+   Everything below is additive. Opened directly, `EMBEDDED` is false and the
+   game behaves exactly as it always has. */
+const EMBEDDED = (() => { try { return window.parent && window.parent !== window; } catch(_){ return true; } })();
+const tellHost = (type, extra) => {
+  if (!EMBEDDED) return;
+  try { window.parent.postMessage(Object.assign({ source:'integers-game', type }, extra || {}), '*'); } catch(_){}
+};
+
 /* ───────────────────────────── dom ──────────────────────────────────── */
 const $  = s => document.querySelector(s);
 const stage    = $('#stage');
@@ -120,6 +135,15 @@ window.addEventListener('touchend', e => {
 window.addEventListener('touchmove', e => { if (e.touches.length > 1) stop(e); }, { passive:false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
+/* Every clip ships as both .ogg (Opus) and .mp3. Opus is about 40% of the
+   size, and Safari cannot play it in an Ogg container, so the extension is
+   chosen once, here, and everything else keeps naming files as .mp3. */
+const AUDIO_EXT = (() => {
+  try { return new Audio().canPlayType('audio/ogg; codecs="opus"') ? '.ogg' : '.mp3'; }
+  catch(_){ return '.mp3'; }
+})();
+const audioSrc = p => p.replace(/\.mp3$/, AUDIO_EXT);
+
 /* ═══════════════════ 2 · audio (contained in this tab) ═══════════════ */
 const Audio_ = {
   muted:false, ready:false, ctx:null,
@@ -137,7 +161,7 @@ const Audio_ = {
     if (this.ready) return;
     for (const k in this.defs){
       const [src, vol, loop] = this.defs[k];
-      const a = new Audio(src);
+      const a = new Audio(audioSrc(src));
       a.preload = 'auto'; a.loop = loop; a.volume = vol;
       this.el[k] = a;
     }
@@ -242,6 +266,47 @@ const speakable = t => t
   .replace(/\u2212\s*(\d)/g, 'minus $1')
   .replace(/\+\s*(\d)/g,      'plus $1');
 
+/* ═══════ 3b · pre-rendered narration ═════════════════════════════════
+   Every spoken line in data.js has an mp3 in assets/vo/, rendered from the
+   same Azure neural voices the story VO uses - Prabhat for Guddu, Neerja for
+   Pari - and named after its line id by vo-manifest.js.
+
+   A file beats the browser's own engine on every axis that matters here. It
+   is the SAME voice on every machine instead of whatever happens to be
+   installed; it cannot come out silent because a platform shipped no voices;
+   and its progress is measured rather than guessed - `currentTime / duration`
+   IS how far through the line we are, which is exactly what the equation
+   reveal rides on. Web Speech stays underneath as the fallback, so deleting
+   assets/vo/ leaves the game working as it did before.                     */
+const Clip = {
+  cache: {}, current: null,
+
+  el(id){
+    const f = (window.VO_FILES || {})[id];
+    if (!f) return null;
+    if (!this.cache[id]){
+      const a = new Audio(audioSrc('assets/vo/' + f));
+      a.preload = 'auto';
+      this.cache[id] = a;
+    }
+    return this.cache[id];
+  },
+
+  /* the next few lines a screen will need, fetched while it is still talking */
+  warm(step){
+    if (!step) return;
+    const ids = [step.id + '.vo', step.id + '.correct', step.id + '.idle',
+                 step.id + '.wrong1', step.id + '.wrong2', step.id + '.wrong3'];
+    ids.forEach(i => { const a = this.el(i); if (a) { try { a.load(); } catch(_){} } });
+  },
+
+  stop(){
+    const a = this.current; this.current = null;
+    if (!a) return;
+    try { a.pause(); a.currentTime = 0; } catch(_){}
+  }
+};
+
 const VO = {
   voices:[], guddu:null, pari:null, speaking:false, keepAlive:null,
   supported: 'speechSynthesis' in window,
@@ -263,18 +328,20 @@ const VO = {
   },
 
   cancel(){
-    if (!this.supported) return;
-    try { speechSynthesis.cancel(); } catch(_){}
+    Clip.stop();
+    clearTimeout(this._clipGuard);
     this.speaking = false;
     clearInterval(this.keepAlive);
     Guddu.talk(false);
+    if (!this.supported) return;
+    try { speechSynthesis.cancel(); } catch(_){}
   },
 
   /* `onProgress` is called with 0..1 as the line is spoken. It is what keeps
-     the number sentence in step with the voice: estimating the duration from
-     the character count cannot work, because the rate depends on the engine,
-     the platform and which voice got picked, and it was visibly out. */
-  speak(text, speaker = 'guddu', onProgress = null){
+     the number sentence in step with the voice. A pre-rendered clip reports it
+     from the audio clock, which is exact; the browser's engine reports it from
+     word-boundary events, which is as close as that path can get. */
+  speak(text, speaker = 'guddu', onProgress = null, voId = null){
     const who = Guddu;
     return new Promise(resolve => {
       this.cancel();
@@ -284,10 +351,11 @@ const VO = {
         try { onProgress(Math.max(0, Math.min(1, p))); } catch(_){}
       };
       const settle = () => { if (onProgress) { try { onProgress(1); } catch(_){} } };
+      const clip = voId ? Clip.el(voId) : null;
 
-      /* Muted, or no engine at all: the line still occupies a span of time,
-         so progress comes off that and the sentence still builds in step. */
-      if (Audio_.muted || !this.supported){
+      /* Muted, or nothing at all to speak with: the line still occupies a span
+         of time, so progress comes off that and the sentence still builds. */
+      if (Audio_.muted || (!clip && !this.supported)){
         who.talk(true);
         const ms = Math.max(1600, text.length * 62);
         const t0 = performance.now();
@@ -300,52 +368,98 @@ const VO = {
         setTimeout(() => { settle(); done = true; who.talk(false); resolve(); }, ms);
         return;
       }
-      const u = new SpeechSynthesisUtterance(speakable(text));
-      const v = speaker === 'pari' ? this.pari : this.guddu;
-      if (v) { u.voice = v; u.lang = v.lang; }
-      u.rate  = 0.84;                       // slow and clear, on purpose
-      u.pitch = speaker === 'pari' ? 1.18 : 0.96;
-      u.volume= 1;
-      /* Word boundaries are the real clock: the engine says how far into the
-         text it has got, whatever rate it is running at. Not every engine
-         emits them, so if none has arrived shortly after he starts, a timer
-         takes over and the reveal degrades to an even spread. */
-      let heardBoundary = false, fallback = null;
-      const spoken = (u.text || '').length || 1;
-      u.onboundary = e => {
-        heardBoundary = true;
-        if (fallback) { clearInterval(fallback); fallback = null; }
-        report((e.charIndex || 0) / spoken);
+
+      /* ── the browser's own engine: the fallback, and what runs for any line
+            that has no file (there are none today, but data.js may grow) ── */
+      const useSpeech = () => {
+        if (!this.supported){
+          who.talk(true);
+          const ms = Math.max(1600, text.length * 62);
+          setTimeout(() => { settle(); done = true; who.talk(false); resolve(); }, ms);
+          return;
+        }
+        const u = new SpeechSynthesisUtterance(speakable(text));
+        const v = speaker === 'pari' ? this.pari : this.guddu;
+        if (v) { u.voice = v; u.lang = v.lang; }
+        u.rate  = 0.84;
+        u.pitch = speaker === 'pari' ? 1.18 : 0.96;
+        u.volume= 1;
+
+        let heardBoundary = false, fallback = null;
+        const spoken = (u.text || '').length || 1;
+        u.onboundary = e => {
+          heardBoundary = true;
+          if (fallback) { clearInterval(fallback); fallback = null; }
+          report((e.charIndex || 0) / spoken);
+        };
+        const finish = () => {
+          if (done) return;
+          clearInterval(fallback); settle(); done = true;
+          this.speaking = false; clearInterval(this.keepAlive);
+          who.talk(false); resolve();
+        };
+        const est = Math.max(1600, text.length * 68);
+        let t0 = performance.now();
+        fallback = setInterval(() => {
+          if (done || heardBoundary) return clearInterval(fallback);
+          report((performance.now() - t0) / est);
+        }, 80);
+        u.onstart = () => { this.speaking = true; who.talk(true); t0 = performance.now(); };
+        u.onend   = finish;
+        u.onerror = finish;
+        clearInterval(this.keepAlive);
+        this.keepAlive = setInterval(() => {
+          if (!this.speaking) return clearInterval(this.keepAlive);
+          try { speechSynthesis.pause(); speechSynthesis.resume(); } catch(_){}
+        }, 8000);
+        try { speechSynthesis.speak(u); } catch(_){ finish(); }
+        setTimeout(finish, Math.max(5000, text.length * 150));
       };
 
-      const finish = () => {
+      if (!clip) return useSpeech();
+
+      /* ── the pre-rendered line ── */
+      Clip.stop();
+      Clip.current = clip;
+      this.speaking = true;
+      who.talk(true);
+
+      let raf = 0;
+      const endClip = () => {
         if (done) return;
-        clearInterval(fallback); settle(); done = true;
-        this.speaking = false; clearInterval(this.keepAlive);
+        cancelAnimationFrame(raf);
+        clip.onended = clip.onerror = null;
+        clearTimeout(this._clipGuard);
+        settle(); done = true;
+        this.speaking = false;
+        if (Clip.current === clip) Clip.current = null;
         who.talk(false); resolve();
       };
-      /* The ticker is armed here rather than in onstart, because onstart is
-         itself not guaranteed: an engine with no voices installed can accept
-         the utterance and emit nothing at all, and the sentence would then
-         sit staged until the line was over and arrive in one lump — exactly
-         what this is meant to stop. onstart only restarts the clock. */
-      const est = Math.max(1600, text.length * 68);
-      let t0 = performance.now();
-      fallback = setInterval(() => {
-        if (done || heardBoundary) return clearInterval(fallback);
-        report((performance.now() - t0) / est);
-      }, 80);
-      u.onstart = () => { this.speaking = true; who.talk(true); t0 = performance.now(); };
-      u.onend   = finish;
-      u.onerror = finish;
-      // Chrome silently stops long utterances unless nudged.
-      clearInterval(this.keepAlive);
-      this.keepAlive = setInterval(() => {
-        if (!this.speaking) return clearInterval(this.keepAlive);
-        try { speechSynthesis.pause(); speechSynthesis.resume(); } catch(_){}
-      }, 8000);
-      try { speechSynthesis.speak(u); } catch(_){ finish(); }
-      setTimeout(finish, Math.max(5000, text.length * 150));   // hard safety net
+      /* the file could not be decoded or is missing off disk: hand the line
+         back to the speech engine rather than losing it */
+      const bail = () => {
+        if (done) return;
+        cancelAnimationFrame(raf);
+        clip.onended = clip.onerror = null;
+        clearTimeout(this._clipGuard);
+        this.speaking = false;
+        if (Clip.current === clip) Clip.current = null;
+        useSpeech();
+      };
+      const tick = () => {
+        if (done) return;
+        if (clip.duration) report(clip.currentTime / clip.duration);
+        raf = requestAnimationFrame(tick);
+      };
+      clip.onended = endClip;
+      clip.onerror = bail;
+      try { clip.currentTime = 0; } catch(_){}
+      const played = clip.play();
+      if (played && played.catch) played.catch(bail);
+      raf = requestAnimationFrame(tick);
+      /* never strand a screen on a clip that refuses to fire `ended` */
+      clearTimeout(this._clipGuard);
+      this._clipGuard = setTimeout(endClip, Math.max(8000, text.length * 160));
     });
   }
 };
@@ -358,10 +472,12 @@ if (VO.supported){
 document.addEventListener('visibilitychange', () => {
   if (document.hidden){
     Audio_.pauseAll();
+    if (Clip.current) { try { Clip.current.pause(); } catch(_){} }
     if (VO.supported) { try { speechSynthesis.pause(); } catch(_){} }
     if (Audio_.ctx && Audio_.ctx.state === 'running') Audio_.ctx.suspend();
   } else {
     Audio_.resumeLoops();
+    if (Clip.current) { Clip.current.play().catch(()=>{}); }
     if (VO.supported && VO.speaking) { try { speechSynthesis.resume(); } catch(_){} }
     if (Audio_.ctx && Audio_.ctx.state === 'suspended') Audio_.ctx.resume();
   }
@@ -377,7 +493,7 @@ window.addEventListener('beforeunload', () => { Audio_.stopAll(); VO.cancel(); }
 const POSES = ['talk','point','happy','cheer','worried','surprised',
                'think','idle','neutral'];
 
-/* guddu-point.png is clipped by the left edge of its own canvas: its opaque
+/* guddu-point.webp is clipped by the left edge of its own canvas: its opaque
    content runs to x0 of a 1024-wide image and the pointing hand is missing
    pixels, not mispositioned. Nothing here can recover them — object-fit is
    `contain`, which never crops, so the fault is in the asset. Until it is
@@ -391,7 +507,7 @@ const Guddu = {
   front: 'a', cur: 'talk',
 
   preload(){
-    POSES.forEach(p => { const i = new Image(); i.src = `assets/img/guddu-${p}.png`; });
+    POSES.forEach(p => { const i = new Image(); i.src = `assets/img/guddu-${p}.webp`; });
   },
 
   pose(name){
@@ -400,7 +516,7 @@ const Guddu = {
     this.cur = name;
     const showing = this.front === 'a' ? this.b : this.a;
     const hiding  = this.front === 'a' ? this.a : this.b;
-    showing.src = `assets/img/guddu-${name}.png`;
+    showing.src = `assets/img/guddu-${name}.webp`;
     showing.style.opacity = '1';
     hiding.style.opacity  = '0';
     this.front = this.front === 'a' ? 'b' : 'a';
@@ -419,7 +535,7 @@ const LAYOUT_MAP = {
   tank:'#tank', pipeIn:'#pipeIn', pipeOut:'#pipeOut', valveIn:'#valveIn',
   valveOut:'#valveOut', marker:'#marker', guddu:'#guddu', bubble:'#bubble',
   bubbleText:'#bubbleText', eqPanel:'#eqPanel',
-  nextBtn:'#nextBtn', hintBar:'#hintBar', chapterTag:'#chapterTag',
+  nextBtn:'#nextBtn', chapterTag:'#chapterTag',
   river:'#river', gauge:'#gauge'
 };
 
@@ -766,7 +882,7 @@ const Flow = {
     const ex = this.RIVER.x, ey = this.RIVER.y;
     const wob = Math.sin(this.t * 2.2) * 3;
 
-    /* Full bore. The mouth of pipe-outlet-elbow.png measures 47.8 CSS px
+    /* Full bore. The mouth of pipe-outlet-elbow.webp measures 47.8 CSS px
        across, so the jet leaves the same width as the pipe and only spreads
        as it falls. It used to be 34px at full strength — narrower than the
        hole it came out of. */
@@ -1532,13 +1648,14 @@ const EqStage = {
 };
 
 /* ═══════════════════ 9 · speech bubble ═══════════════════════════════ */
-async function say(text, speaker = 'guddu', tone = '', onProgress = null){
+async function say(text, speaker = 'guddu', tone = '', onProgress = null, voId = null){
   Game.lastSpeaker = speaker;
+  Game.lastVoId   = voId;
   bubbleTx.textContent = text;
   bubbleEl.classList.remove('good','bad');
   if (tone) bubbleEl.classList.add(tone);
   bubbleEl.classList.add('show');
-  await VO.speak(text, speaker, onProgress);
+  await VO.speak(text, speaker, onProgress, voId);
 }
 
 /* ═══════════════════ 9b · the flood wipe ═════════════════════════════
@@ -1633,6 +1750,7 @@ const Flood = {
 /* ═══════════════════ 10 · flow controller ════════════════════════════ */
 const Game = {
   i: 0, step: null, level: 0, waterLevel: 0, interactive: false, lastSpeaker: 'guddu',
+  lastVoId: null,
   asked: 0, firstTry: 0, autoTimer: null,
   wrongCount: 0, idleTimer: null, solved: false,
   touched: false,               // has the learner grabbed the marker on this screen
@@ -1737,6 +1855,7 @@ const Game = {
     nextBtn.hidden = true;
     clearTimeout(this.commitTimer);
 
+    Clip.warm(s);
     chapterName.textContent = CHAPTERS[s.chapter] || '';
     stepTag.textContent = `${i + 1} / ${FLOW.length}`;
 
@@ -1779,14 +1898,14 @@ const Game = {
        by the narration's own progress, not by a timer running beside it. The
        tiles come only once the line is over and the sentence is complete. */
     if (s.equation){
-      await say(s.vo, s.speaker || 'guddu', '', p => { if (!stale()) EqStage.advance(p); });
+      await say(s.vo, s.speaker || 'guddu', '', p => { if (!stale()) EqStage.advance(p); }, s.id + '.vo');
       if (stale()) return;
       EqStage.finish();
       /* The tiles do NOT arrive here. The sentence is now a question, and the
          tank is where it gets answered — see offerTiles(). */
       await wait(240);
     } else {
-      await say(s.vo, s.speaker || 'guddu');
+      await say(s.vo, s.speaker || 'guddu', '', null, s.id + '.vo');
     }
     if (stale()) return;
 
@@ -1811,7 +1930,9 @@ const Game = {
       if (s.type === 'finish' && i === FLOW.length - 1){
         stage.classList.add('celebrate');
         Audio_.play('correct');
+        if (EMBEDDED) nextBtn.querySelector('span').textContent = 'Back to the story';
         nextBtn.hidden = false;           // the only screen that waits for a tap
+        tellHost('finished');
         return;
       }
       this.autoNext(AUTO_OBSERVE);        // a cutscene moves on by itself
@@ -1988,7 +2109,7 @@ const Game = {
     [...tilesEl.children].forEach(b => b.disabled = true);
     markCorrect(this.level);
     renderEquation(this.step, this.level, true);
-    await say(this.step.correct, 'guddu', 'good');
+    await say(this.step.correct, 'guddu', 'good', null, this.step.id + '.correct');
     if (stale()) return;
     await wait(BEAT);
     if (stale()) return;
@@ -2007,7 +2128,7 @@ const Game = {
     Guddu.pose(this.wrongCount >= 3 ? 'surprised' : 'worried');
     stage.classList.add('shake');
     setTimeout(() => stage.classList.remove('shake'), 460);
-    await say(tier.vo, 'guddu', 'bad');
+    await say(tier.vo, 'guddu', 'bad', null, this.step.id + '.wrong' + (tierIdx + 1));
     if (stale()) return;
     Guddu.pose('think');
     await this.runHintAnim(tier.anim);
@@ -2047,7 +2168,7 @@ const Game = {
     this.interactive = false;
     Ghost.stop();
     Guddu.pose('think');
-    await say(idle.vo, idle.speaker || 'guddu');
+    await say(idle.vo, idle.speaker || 'guddu', '', null, this.step.id + '.idle');
     if (stale()) return;
     await this.runHintAnim(idle.anim);
     if (stale()) return;
@@ -2146,18 +2267,24 @@ function loop(now){
    marker coming to rest already say everything Check was asking to confirm,
    and Continue went because the flow moves on by itself everywhere — the one
    place it must not is the end, which is what this is. */
-nextBtn.addEventListener('click', () => location.reload());
+nextBtn.addEventListener('click', () => {
+  /* standalone this is Play again; inside the storybook it hands the reader
+     back to the scene after the one that sent them here */
+  if (EMBEDDED) { tellHost('exit'); return; }
+  location.reload();
+});
 
 $('#replayBtn').addEventListener('click', () => {
   if (!Game.step) return;
-  say(bubbleTx.textContent || Game.step.vo, Game.lastSpeaker || 'guddu');
+  say(bubbleTx.textContent || Game.step.vo, Game.lastSpeaker || 'guddu',
+      '', null, Game.lastVoId);
   Game.poke();
 });
 $('#muteBtn').addEventListener('click', e => {
   Audio_.muted = !Audio_.muted;
   e.currentTarget.classList.toggle('off', Audio_.muted);
   e.currentTarget.textContent = Audio_.muted ? '\u{1F507}' : '\u{1F50A}';
-  if (Audio_.muted){ Audio_.pauseAll(); VO.cancel(); }
+  if (Audio_.muted){ Audio_.pauseAll(); Clip.stop(); VO.cancel(); }
   else { Audio_.resumeLoops(); }
 });
 
@@ -2199,8 +2326,20 @@ $('#startBtn').addEventListener('click', () => {
 })();
 /* ═══════════ end QA ═══════════════════════════════════════════════════ */
 
+/* the host silences the game the instant it closes the overlay, so nothing
+   keeps playing behind a hidden iframe */
+window.addEventListener('message', e => {
+  const d = e && e.data;
+  if (!d || d.source !== 'integers-host') return;
+  if (d.type === 'silence'){
+    Audio_.muted = true; Audio_.pauseAll(); Clip.stop(); VO.cancel();
+  }
+});
+
 window.__GAME = Game;
+window.__EMBEDDED = EMBEDDED;
 window.__HOPS = Hops;
+window.__CLIP = Clip;
 window.__EQ = EqStage;          // test hooks
 window.__SPRING = Spring;
 window.__MOTION = Motion;

@@ -25,7 +25,6 @@ const OBJECTS = [
   { key:'bubbleText', sel:'#bubbleText', label:'Bubble text box',   font:true },
   { key:'eqPanel',    sel:'#eqPanel',    label:'Equation panel' },
   { key:'nextBtn',    sel:'#nextBtn',    label:'Play again button' },
-  { key:'hintBar',    sel:'#hintBar',    label:'Hint strip' },
   { key:'chapterTag', sel:'#chapterTag', label:'Chapter tag' },
   { key:'river',      sel:'#river',      label:'River effect' },
   { key:'gauge',      sel:'#gauge',      label:'Gauge — ticks & labels', gauge:true }

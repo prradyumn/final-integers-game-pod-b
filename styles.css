@@ -1,0 +1,460 @@
+/* ── Poppins, self-hosted ──────────────────────────────────────────────
+   font-display:block, not swap: swap renders the fallback first and then
+   re-lays the text out when the real face lands, which moved the caption.
+   These files are local, so "block" costs nothing - there is no network
+   round trip to wait through. */
+@font-face{
+  font-family:'Poppins';font-style:normal;font-weight:500;font-display:block;
+  src:url('assets/fonts/poppins-500.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Poppins';font-style:normal;font-weight:600;font-display:block;
+  src:url('assets/fonts/poppins-600.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Poppins';font-style:normal;font-weight:700;font-display:block;
+  src:url('assets/fonts/poppins-700.woff2') format('woff2');
+}
+
+:root{
+  --ink:#0b1a24;
+  --sky:#3094fd;
+  --bubble-fill:#f0f9fc;
+  --fs:24px;                /* set by JS: 2.5% of stage width, matching 32pt @1280 */
+  --stage-w:100vw;
+  --stage-h:100vh;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:auto}
+body{
+  margin:0;
+  background:#05141d;
+  color:#eaf7fd;
+  font-family:'Poppins','Avenir Next Rounded','Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;
+  overscroll-behavior-y:none;
+}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---------------------------------------------------------------- stage */
+.stage{
+  position:fixed;
+  inset:0;
+  display:grid;
+  place-items:center;
+  z-index:0;
+  background:#05141d;
+  overflow:hidden;
+}
+.layers{
+  position:relative;
+  width:var(--stage-w);
+  height:var(--stage-h);
+  overflow:hidden;
+  border-radius:0;
+}
+.layer{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  opacity:0;
+  will-change:opacity,transform;
+  transform:scale(1.045);
+}
+.layer.is-live{opacity:1}
+
+.rain-canvas,.vignette{
+  position:absolute;
+  left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:var(--stage-w);
+  height:var(--stage-h);
+  pointer-events:none;
+}
+.rain-canvas{z-index:2}
+.vignette{
+  z-index:3;
+  background:
+    linear-gradient(180deg,rgba(2,14,22,.14),transparent 18%,transparent 66%,rgba(2,13,20,.34)),
+    radial-gradient(circle at 50% 46%,transparent 56%,rgba(2,13,20,.3) 100%);
+}
+
+/* overlay hosts the bubbles, sized exactly like the artwork */
+.overlay{
+  position:absolute;
+  left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:var(--stage-w);
+  height:var(--stage-h);
+  z-index:4;
+  pointer-events:none;
+}
+
+/* ------------------------------------------------------------- bubbles */
+.bubble{
+  position:absolute;
+  font-size:var(--fs);
+  font-weight:600;
+  line-height:1.25;
+  color:#000;
+  letter-spacing:-.005em;
+  /* the artwork's stroke is thicker than the old body's, so keep the text a
+     little further off the edge */
+  padding:.72em 1.15em .78em;
+  max-width:calc(100% - 2.5em);
+  text-wrap:balance;
+  opacity:0;
+  transform:translateY(.55em) scale(.965);
+  transform-origin:50% 100%;
+  transition:opacity .34s ease,transform .42s cubic-bezier(.2,.9,.25,1);
+}
+.bubble.is-in{opacity:1;transform:none}
+/* one piece of art carries the box and the tail, so there is nothing to line up
+   by hand. bubble-speech.webp is 1292x577 with the body ending at y=462, i.e. the
+   body is 80.07% of the artwork: stretch the skin to 125.4% of the text box and
+   the body lands exactly on the box while the tail hangs off the bottom. */
+.bubble .skin{
+  position:absolute;
+  left:0;right:0;
+  top:-.45%;
+  bottom:-24.95%;
+  background-image:url('assets/ui/bubble-speech.webp');
+  background-size:100% 100%;
+  background-repeat:no-repeat;
+  filter:drop-shadow(0 .16em .34em rgba(6,32,56,.28));
+  pointer-events:none;
+  z-index:-1;
+}
+.bubble .tx{position:relative;display:block}
+/* each word is one unbreakable unit - without this the per-letter spans
+   would be free to wrap in the middle of a word */
+.wd{white-space:nowrap}
+/* the inter-word span must keep its width when hidden but still allow a wrap */
+.sp{white-space:pre-wrap}
+
+/* typewriter: every glyph is present from the start so the text never re-wraps */
+/* ------------------------------------------------------------------ studio */
+/* the scroll track normally sits above the fixed stage, so lift the stage
+   while editing or the drags never reach a caption */
+body.studio .stage{z-index:30}
+body.studio .scroller{pointer-events:none}
+body.studio .bubble,
+body.studio .narration{pointer-events:auto;cursor:grab;outline:1px dashed rgba(127,224,255,.55);outline-offset:3px}
+body.studio .bubble.drag,body.studio .narration.drag{cursor:grabbing}
+body.studio #overlay{pointer-events:none}
+.grip{
+  position:absolute;
+  width:14px;height:14px;
+  right:-8px;bottom:-8px;
+  border-radius:50%;
+  background:#17c2ec;
+  border:2px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.4);
+  cursor:nwse-resize;
+  display:none;
+  pointer-events:auto;
+  z-index:5;
+}
+body.studio .grip{display:block}
+
+#studio{
+  position:fixed;
+  top:12px;right:12px;
+  z-index:60;
+  width:280px;
+  max-height:calc(100vh - 24px);
+  overflow:auto;
+  padding:12px 13px 14px;
+  border-radius:14px;
+  background:rgba(6,24,34,.93);
+  border:1px solid rgba(160,220,244,.26);
+  backdrop-filter:blur(20px);
+  font-size:12px;
+  color:#dff4fd;
+  box-shadow:0 14px 44px rgba(0,0,0,.5);
+  display:none;
+}
+body.studio #studio{display:block}
+#studio h3{margin:0 0 2px;font-size:13px;letter-spacing:-.01em}
+#studio .muted{color:#7fa4b4;font-size:11px;margin:0 0 10px}
+#studio .row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+#studio .row label{flex:0 0 74px;color:#8fb6c6}
+#studio input[type=number]{
+  flex:1 1 auto;min-width:0;
+  padding:4px 6px;border-radius:6px;
+  border:1px solid rgba(160,220,244,.24);
+  background:rgba(255,255,255,.06);color:#eafaff;font:inherit;
+}
+#studio .seg{display:flex;gap:5px;margin:8px 0}
+#studio button{
+  flex:1 1 auto;
+  padding:6px 8px;border:0;border-radius:7px;
+  background:rgba(127,224,255,.16);color:#dff4fd;
+  font:inherit;font-weight:600;cursor:pointer;
+}
+#studio button:hover{background:rgba(127,224,255,.3)}
+#studio button.primary{background:linear-gradient(145deg,#7fe0ff,#17c2ec);color:#04202c}
+#studio .nav{display:flex;align-items:center;gap:6px;margin-bottom:9px}
+#studio .nav b{flex:1 1 auto;text-align:center;font-size:12px}
+#studio textarea{
+  width:100%;height:92px;margin-top:8px;
+  padding:7px;border-radius:8px;
+  border:1px solid rgba(160,220,244,.24);
+  background:rgba(0,0,0,.34);color:#bfe6f5;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;
+  resize:vertical;
+}
+#studio .ok{color:#8ff0c0}
+
+.ch{visibility:hidden}
+.ch.on{visibility:visible}
+/* THE CARET TAKES NO WIDTH.
+   app.js walks this element through the text, re-inserting it before whichever
+   letter is next. While it was a .075em inline-block with a .04em margin, that
+   moving ~0.115em was enough to push the last word of a line over the edge and
+   back again as it travelled, so the caption re-wrapped, changed height, and
+   the box visibly jumped up and down for the whole line. Measured: 10 of the 12
+   scenes did it, the text block taking up to 6 different heights in one scene.
+
+   The element is now zero-width and the visible bar is drawn by an absolutely
+   positioned ::after, which is out of flow and cannot influence line breaking.
+   The bar still sits exactly where the next letter will appear. */
+.caret{
+  position:relative;
+  display:inline-block;
+  width:0;
+  height:.92em;
+  margin-left:0;
+  vertical-align:-.13em;
+  opacity:0;
+}
+.caret::after{
+  content:'';
+  position:absolute;
+  left:.04em;
+  top:0;
+  width:.075em;
+  height:100%;
+  background:currentColor;
+  border-radius:.04em;
+}
+.is-typing .caret{opacity:.75;animation:blink .9s steps(1,end) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ------------------------------------------------- narrator caption band */
+.narration{
+  position:absolute;
+  left:50%;
+  bottom:13%;
+  transform:translateX(-50%) translateY(.5em);
+  width:min(76%,50em);
+  padding:.72em 1.15em;
+  border-radius:.62em;
+  background:linear-gradient(180deg,rgba(4,22,33,.84),rgba(2,14,22,.9));
+  border:1px solid rgba(180,228,247,.3);
+  box-shadow:0 .7em 2em rgba(0,0,0,.4);
+  backdrop-filter:blur(16px) saturate(130%);
+  color:#f2fbff;
+  font-size:calc(var(--fs) * .86);
+  font-weight:500;
+  line-height:1.34;
+  text-align:center;
+  text-shadow:0 1px 10px rgba(0,0,0,.5);
+  opacity:0;
+  transition:opacity .34s ease,transform .42s cubic-bezier(.2,.9,.25,1);
+}
+.narration.is-in{opacity:1;transform:translateX(-50%)}
+
+/* --------------------------------------------------------- scroll track */
+.scroller{position:relative;z-index:1}
+.beat{width:100%}
+.outro{
+  position:relative;
+  min-height:100svh;
+  display:grid;
+  place-items:center;
+  padding:6vh 5vw;
+  background:linear-gradient(180deg,rgba(5,20,29,0) 0%,rgba(5,20,29,.82) 26%,#05141d 62%);
+}
+.outro-card{max-width:34rem;text-align:center}
+.outro-eyebrow{margin:0 0 .4rem;color:#7fe0ff;font-size:.8rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+.outro h2{margin:0 0 .7rem;font-size:clamp(1.5rem,3.6vw,2.4rem);line-height:1.15;letter-spacing:-.02em}
+.outro p{margin:0 0 1.5rem;color:#a9cbd9;line-height:1.6}
+.outro button,#beginBtn{
+  border:0;border-radius:999px;
+  padding:.85em 1.7em;
+  background:linear-gradient(145deg,#7fe0ff,#17c2ec);
+  color:#04202c;font:inherit;font-weight:700;
+  cursor:pointer;
+  box-shadow:0 .5rem 1.6rem rgba(23,194,236,.3);
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+.outro button:hover,#beginBtn:hover{transform:translateY(-2px);box-shadow:0 .7rem 2rem rgba(23,194,236,.42)}
+
+/* ------------------------------------------------------------------ hud */
+.hud{
+  position:fixed;
+  left:50%;
+  bottom:max(1rem,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  z-index:20;
+  display:flex;
+  align-items:center;
+  gap:.6rem;
+  padding:.45rem .6rem;
+  border-radius:999px;
+  background:rgba(4,20,30,.66);
+  border:1px solid rgba(180,228,247,.2);
+  backdrop-filter:blur(18px) saturate(140%);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .3s ease;
+}
+.hud.is-on{opacity:1;pointer-events:auto}
+.hud-btn{
+  display:inline-flex;align-items:center;gap:.4rem;
+  min-height:2.1rem;padding:0 .7rem;
+  border:0;border-radius:999px;
+  background:rgba(255,255,255,.08);
+  color:#e9f9ff;font:inherit;font-size:.8rem;font-weight:600;
+  cursor:pointer;transition:background .18s ease;
+}
+.hud-btn:hover{background:rgba(127,224,255,.2)}
+.hud-label{letter-spacing:.02em}
+.ico-play,.ico-sound{width:.72rem;height:.72rem;background:currentColor;display:inline-block}
+.ico-play{clip-path:polygon(0 0,100% 50%,0 100%)}
+.hud.is-playing .ico-play{clip-path:polygon(0 0,32% 0,32% 100%,0 100%,0 0);box-shadow:.42rem 0 0 currentColor}
+.ico-sound{clip-path:polygon(0 33%,32% 33%,62% 0,62% 100%,32% 67%,0 67%)}
+.hud.is-muted .ico-sound{opacity:.42}
+.hud-progress{width:min(34vw,13rem);height:3px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden}
+.hud-progress span{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#17c2ec,#7fe0ff,#f8c561)}
+
+/* ----------------------------------------------------------------- gate */
+.gate{
+  position:fixed;inset:0;z-index:40;
+  display:grid;place-items:center;
+  padding:5vw;
+  background:radial-gradient(circle at 50% 30%,rgba(23,120,160,.4),transparent 55%),rgba(3,14,21,.9);
+  backdrop-filter:blur(8px);
+  transition:opacity .5s ease,visibility .5s;
+}
+.gate.is-gone{opacity:0;visibility:hidden}
+.gate-card{max-width:30rem;text-align:center}
+.gate-art{
+  width:6.4rem;height:6.4rem;margin:0 auto 1.3rem;
+  border-radius:1.6rem;
+  background:url('assets/scenes/01@sm.webp') center/cover;
+  box-shadow:0 1rem 2.6rem rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.16);
+}
+.gate-eyebrow{margin:0 0 .35rem;color:#7fe0ff;font-size:.74rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+.gate-card h2{margin:0 0 .7rem;font-size:clamp(1.6rem,5vw,2.3rem);line-height:1.1;letter-spacing:-.025em}
+.gate-sub{margin:0 0 1.6rem;color:#a9cbd9;line-height:1.55}
+.gate-hint{margin:1.1rem 0 0;color:#6e93a3;font-size:.78rem}
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width:760px){
+  /* on a phone the per-scene placement is too cramped - dock the bubble to the
+     top of the frame at full width so the dialogue stays large and readable */
+  .bubble{
+    left:4% !important;
+    right:4%;
+    top:3.5% !important;
+    width:auto !important;
+    max-width:none;
+  }
+  .narration{width:92%;bottom:9%;font-size:calc(var(--fs) * .92)}
+  .hud-progress{width:30vw}
+  .hud{bottom:max(.7rem,env(safe-area-inset-bottom))}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .bubble,.narration{transition:opacity .01ms}
+  .caret{animation:none}
+  .layer{transform:none}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   THE GAME HANDOFF
+   Everything below is additive - no rule above is modified, so the story
+   looks exactly as it did. It styles three things that did not exist
+   before: the Game button in the HUD, the card that offers the game when
+   the story reaches it, and the panel the game itself is shown in.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* the way into the game at any time, beside Auto */
+.hud-btn--game{background:rgba(248,197,97,.16);color:#ffe6ae}
+.hud-btn--game:hover{background:rgba(248,197,97,.3)}
+.ico-game{
+  width:.72rem;height:.72rem;display:inline-block;background:currentColor;
+  clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%);
+}
+
+/* ---------------------------------------------------- the handoff card */
+.handoff{
+  position:fixed;inset:0;z-index:45;
+  display:grid;place-items:center;
+  padding:5vw;
+  background:radial-gradient(circle at 50% 30%,rgba(23,120,160,.4),transparent 55%),rgba(3,14,21,.92);
+  backdrop-filter:blur(8px);
+  opacity:0;visibility:hidden;
+  transition:opacity .45s ease,visibility .45s;
+}
+.handoff.is-on{opacity:1;visibility:visible}
+.handoff-card{max-width:30rem;text-align:center}
+.handoff-eyebrow{margin:0 0 .35rem;color:#f8c561;font-size:.74rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+.handoff-card h2{margin:0 0 .7rem;font-size:clamp(1.6rem,5vw,2.3rem);line-height:1.1;letter-spacing:-.025em}
+.handoff-sub{margin:0 0 1.6rem;color:#a9cbd9;line-height:1.55}
+.handoff-card button{
+  border:0;border-radius:999px;padding:.85em 1.7em;
+  background:linear-gradient(145deg,#ffd98a,#f0a93c);
+  color:#33220a;font:inherit;font-weight:700;cursor:pointer;
+  box-shadow:0 .5rem 1.6rem rgba(240,169,60,.32);
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+.handoff-card button:hover{transform:translateY(-2px);box-shadow:0 .7rem 2rem rgba(240,169,60,.45)}
+.handoff-skip{
+  display:block;margin:.9rem auto 0;
+  background:none !important;box-shadow:none !important;
+  color:#6e93a3 !important;font-size:.8rem !important;font-weight:600 !important;
+  padding:.4em .8em !important;
+}
+.handoff-skip:hover{color:#a9cbd9 !important;transform:none !important}
+
+/* ------------------------------------------------- the game, in its frame */
+.game-wrap{
+  position:fixed;inset:0;z-index:60;
+  display:none;place-items:center;
+  background:#05141d;
+}
+.game-wrap.is-on{display:grid}
+/* The game draws a fixed 1920x1080 stage and scales it to whatever box it is
+   given, so the frame just has to fill the viewport and stay out of the way. */
+.game-frame{position:absolute;inset:0}
+.game-mount,.game-mount iframe{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  border:0;display:block;
+}
+.game-loading{
+  position:absolute;inset:0;display:grid;place-items:center;
+  gap:.9rem;color:#a9cbd9;font-size:.85rem;pointer-events:none;
+  transition:opacity .4s ease;
+}
+.game-wrap.is-ready .game-loading{opacity:0}
+.game-loading span{
+  width:2.2rem;height:2.2rem;justify-self:center;
+  border:3px solid rgba(127,224,255,.25);border-top-color:#7fe0ff;border-radius:50%;
+  animation:gameSpin .9s linear infinite;
+}
+.game-loading p{margin:0}
+@keyframes gameSpin{to{transform:rotate(360deg)}}
+
+/* while the game is up the story underneath must not scroll behind it */
+body.game-open{overflow:hidden}
+
+@media (prefers-reduced-motion: reduce){
+  .game-loading span{animation-duration:3s}
+}

@@ -13,7 +13,7 @@
   <div id="stage">
 
     <!-- ── backdrop ─────────────────────────────────────────────────────── -->
-    <img id="bg" src="assets/img/scene-background.png" alt="">
+    <img id="bg" src="assets/img/scene-background.webp" alt="">
     <!-- the river, made to move: two seamless caustic sheets scrolling at
          different speeds and scales, Gaussian-blurred glints drifting over
          them, the whole thing masked to the painted water and optionally
@@ -149,7 +149,7 @@
     <!-- ── tank  (Figma: x199 y10 723×1084 — empty-tank art fitted to the
              same glass interior, 351.6..765.9 × 122.9..953.5) ───────────── -->
     <div id="tank">
-      <img id="tankArt" src="assets/img/water-tank-empty.png" alt="Water tank">
+      <img id="tankArt" src="assets/img/water-tank-empty.webp" alt="Water tank">
 
       <svg id="waterSvg" viewBox="0 0 414 831" preserveAspectRatio="none" aria-hidden="true">
         <defs>
@@ -222,15 +222,15 @@
 
       <div id="marker" role="slider" aria-label="Water level" tabindex="0"
            aria-valuemin="-6" aria-valuemax="6" aria-valuenow="0">
-        <img src="assets/img/marker-arrow-bold.png" alt="">
+        <img src="assets/img/marker-arrow-bold.webp" alt="">
       </div>
 
       <!-- Where this move began. It drops onto the starting level and stays
            there for the whole screen, so "I started at −2, I am now at +2" is
            something the learner can see rather than has to remember. Reuses
-           marker-dot-round.png, tinted so it reads as subordinate to the red
+           marker-dot-round.webp, tinted so it reads as subordinate to the red
            live marker. -->
-      <img id="startPin" src="assets/img/marker-dot-round.png" alt="" aria-hidden="true">
+      <img id="startPin" src="assets/img/marker-dot-round.webp" alt="" aria-hidden="true">
 
       <!-- One arc per level crossed, drawn from the start pin to the marker,
            with a running count. This is the number-line hop the learner will
@@ -254,16 +254,16 @@
            it, dragged a short way and released, on a loop, until the learner
            touches the real one. It shows the gesture, never the answer — it
            travels the same distance whatever the target is. The hand is
-           hand-nudge.png, cropped in CSS to drop the motion arcs the artwork
+           hand-nudge.webp, cropped in CSS to drop the motion arcs the artwork
            carries — they read as sideways movement, and this drag is up and
            down. -->
       <div id="ghost" aria-hidden="true">
-        <img class="ghostMarker" src="assets/img/marker-arrow-bold.png" alt="">
+        <img class="ghostMarker" src="assets/img/marker-arrow-bold.webp" alt="">
         <i id="ghostHand"></i>
       </div>
 
-      <img id="pipeIn"  src="assets/img/pipe-inlet-s-bend.png"  alt="">
-      <img id="pipeOut" src="assets/img/pipe-outlet-elbow.png" alt="">
+      <img id="pipeIn"  src="assets/img/pipe-inlet-s-bend.webp"  alt="">
+      <img id="pipeOut" src="assets/img/pipe-outlet-elbow.webp" alt="">
 
       <!-- The in-pipe direction dashes used to live here. They were removed:
            the pipe artwork is opaque, fully-rendered steel with specular
@@ -315,7 +315,7 @@
          between them. The box is sized so the body lands exactly where the
          single Figma still did: 637 px tall, feet at y965, centred on x1775. -->
     <div id="guddu" aria-hidden="true">
-      <img class="pose" id="poseA" src="assets/img/guddu-talk.png" alt="">
+      <img class="pose" id="poseA" src="assets/img/guddu-talk.webp" alt="">
       <img class="pose" id="poseB" alt="">
     </div>
 
@@ -371,7 +371,6 @@
     <!-- The hint strip is kept for the layout editor but is never filled:
          every line it used to carry was written for the game rather than taken
          from the flow doc, and the doc defines no on-screen hint text. -->
-    <div id="hintBar"><span id="hintText"></span></div>
 
     <!-- ═══ QA ONLY — delete this block, plus the QA blocks in style.css and
          game.js, to remove the level jumper entirely ═══════════════════ -->
@@ -412,6 +411,8 @@
   </div>
 </div>
 
+<!-- generated: maps every line in data.js to its pre-rendered mp3 -->
+<script src="vo-manifest.js"></script>
 <script src="layout.js"></script>
 <script src="data.js"></script>
 <script src="game.js"></script>

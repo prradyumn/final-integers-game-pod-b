@@ -78,7 +78,7 @@ html,body{
 #ripple{ position:absolute; inset:0; }
 #ripple u{
   position:absolute; left:-14px; width:1128px; height:9px; display:block;
-  background:url("assets/img/scene-background.png") no-repeat;
+  background:url("assets/img/scene-background.webp") no-repeat;
   background-size:1920px 1080px;
   will-change:transform; backface-visibility:hidden;
   animation-name:refract; animation-timing-function:linear;
@@ -339,7 +339,7 @@ html,body{
 
 /* 3 · the rule. It stops flush with the glass on the right and, on the left,
        at the tank's own brick wall — tank-local x117.8, measured off
-       water-tank-empty.png, which is row-relative −30.8 since a row starts at
+       water-tank-empty.webp, which is row-relative −30.8 since a row starts at
        x148.6. Any further and it hangs in mid-air outside the tank. That puts
        its left end just inside the marker, so the marker sits on the line
        rather than the line sticking out behind it. The dark underside is what
@@ -503,7 +503,7 @@ html,body{
    `scale` property so it never collides with the mirror. */
 #ghostHand{
   position:absolute; left:-45px; top:27px; width:130px; height:173px;
-  background:url("assets/img/hand-nudge.png") no-repeat;
+  background:url("assets/img/hand-nudge.webp") no-repeat;
   background-size:273.1px 233.8px;
   background-position:-60.5px -44.3px;
   /* two shadows: a tight one to cut it off the water, a soft one for weight */
@@ -574,7 +574,7 @@ html,body{
    child, so it rides along. */
 #bubble{
   position:absolute; left:1170px; top:49px; width:585px; height:258px;
-  background:url("assets/img/speech-bubble.png") center/cover no-repeat;
+  background:url("assets/img/speech-bubble.webp") center/cover no-repeat;
   opacity:0; transform:translateY(-12px) scale(.985);
   transition:opacity .35s ease, transform .35s ease;
 }
@@ -592,7 +592,7 @@ html,body{
 #eqPanel{
   position:absolute; left:884px; top:443px; width:755px; height:200px;
   border-style:solid; border-width:22px;
-  border-image:url("assets/img/panel-frame.png") 84 fill / 22px / 0 stretch;
+  border-image:url("assets/img/panel-frame.webp") 84 fill / 22px / 0 stretch;
   animation:eqIn .4s ease-out;
 }
 #eqPanel[hidden]{ display:none; }
@@ -765,7 +765,7 @@ body.jsMotion #eqRoles b.in{ opacity:.92; }
 #nextBtn{
   position:absolute; left:1136px; top:840px; width:260px; height:109px;
   border:0; padding:0; background:transparent; cursor:pointer;
-  background-image:url("assets/img/button-pill-orange.png");
+  background-image:url("assets/img/button-pill-orange.webp");
   background-size:100% 100%; background-repeat:no-repeat;
   filter:drop-shadow(0 8px 14px rgba(0,0,0,.28));
   transition:transform .12s ease, filter .12s ease;
@@ -819,13 +819,6 @@ body.jsMotion #eqRoles b.in{ opacity:.92; }
 #hudBtns button:hover{ transform:scale(1.08); background:rgba(5,25,55,.72); }
 #hudBtns button.off{ opacity:.5; }
 
-#hintBar{
-  position:absolute; left:1330px; bottom:104px; transform:translateX(-50%);
-  max-width:580px; padding:11px 26px; border-radius:999px;
-  background:rgba(4,19,69,.68); color:#eaf6ff; font-size:23px; font-weight:700;
-  text-align:center; opacity:0; transition:opacity .3s ease; pointer-events:none;
-}
-#hintBar.show{ opacity:1; }
 
 /* ── the flood wipe ───────────────────────────────────────────────────── */
 #flood{
@@ -848,7 +841,7 @@ body.jsMotion #eqRoles b.in{ opacity:.92; }
 #startBtn{
   position:relative;                      /* the label is pinned to the pill */
   width:340px; height:120px; border:0; padding:0; cursor:pointer; background:transparent;
-  background-image:url("assets/img/button-pill-orange.png");
+  background-image:url("assets/img/button-pill-orange.webp");
   background-size:100% 100%; background-repeat:no-repeat;
   filter:drop-shadow(0 10px 22px rgba(0,0,0,.45));
   transition:transform .14s ease;

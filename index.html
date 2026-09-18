@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#06202e" />
+<meta name="description" content="The Village Water Tank - a continuous scrolling storybook about rainwater, zero as a reference level, and positive and negative numbers." />
+<title>The Village Water Tank</title>
+<link rel="prefetch" href="game/index.html" />
+<!-- Poppins is self-hosted. It used to come from Google Fonts with
+     display=swap, which meant the captions first laid out in the fallback
+     face and then RE-LAID OUT when Poppins arrived - scenes 1 and 12 changed
+     height by 7px at that moment, which is the caption visibly jumping. A
+     local file with font-display:block removes the swap entirely, and the
+     page no longer needs the network to look right. -->
+<link rel="preload" href="assets/fonts/poppins-600.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="assets/fonts/poppins-500.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" as="image" href="assets/scenes/01.webp" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="stage" class="stage" aria-hidden="true">
+  <div id="layers" class="layers"></div>
+  <canvas id="rainCanvas" class="rain-canvas"></canvas>
+  <div class="vignette"></div>
+  <div id="overlay" class="overlay"></div>
+</div>
+
+<main id="scroller" class="scroller">
+  <h1 class="sr-only">The Village Water Tank</h1>
+  <div id="beats"></div>
+  <section class="outro">
+    <div class="outro-card">
+      <p class="outro-eyebrow">The end</p>
+      <h2>Zero is the reference level.</h2>
+      <p>Above zero the village has more water than it needs. Below zero, less.</p>
+      <button id="replay" type="button">Read it again</button>
+    </div>
+  </section>
+</main>
+
+<div id="hud" class="hud">
+  <button id="autoBtn" class="hud-btn" type="button" aria-label="Play the story automatically">
+    <span class="ico-play"></span><span class="hud-label">Auto</span>
+  </button>
+  <div class="hud-progress" role="presentation"><span id="hudBar"></span></div>
+  <button id="gameBtn" class="hud-btn hud-btn--game" type="button" aria-label="Play the water tank game">
+    <span class="ico-game"></span><span class="hud-label">Game</span>
+  </button>
+  <button id="soundBtn" class="hud-btn" type="button" aria-label="Mute all sound">
+    <span class="ico-sound"></span>
+  </button>
+</div>
+
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <div class="gate-art"></div>
+    <p class="gate-eyebrow">Interactive storybook</p>
+    <h2>The Village Water Tank</h2>
+    <p class="gate-sub">Pari and Guddu Bhaiya learn what zero really means.<br />Turn your sound on, then scroll.</p>
+    <button id="beginBtn" type="button">Begin the story</button>
+    <p class="gate-hint">Scroll to move the story - or press <strong>Auto</strong> to let it play itself.</p>
+  </div>
+</div>
+
+<!-- ── the game ────────────────────────────────────────────────────────
+     It lives in its own document on purpose. game/game.js pins the window to
+     0,0 on every scroll event and again every 500ms, which is correct for its
+     fixed 1920x1080 stage and would make this page - which the reader scrolls -
+     impossible to move. Its own frame keeps that lock where it belongs, and
+     keeps #stage / #gate / #hud from colliding with the three of the same name
+     here. The frame is created only when it is needed and destroyed on the way
+     out, so nothing of the game can play behind a hidden panel. -->
+<div id="gameWrap" class="game-wrap" aria-hidden="true">
+  <div class="game-frame"><div id="gameMount" class="game-mount"></div></div>
+  <div id="gameLoading" class="game-loading"><span></span><p>Loading the water tank…</p></div>
+</div>
+
+<!-- shown once, when the story reaches the point the game belongs at -->
+<div id="handoff" class="handoff" aria-hidden="true">
+  <div class="handoff-card">
+    <p class="handoff-eyebrow">Your turn</p>
+    <h2>Read the water level</h2>
+    <p class="handoff-sub">Pari and Guddu have shown you what zero means.<br />Now take the marker and track the water yourself.</p>
+    <button id="handoffGo" type="button">Play the game</button>
+    <button id="handoffSkip" class="handoff-skip" type="button">Skip for now</button>
+  </div>
+</div>
+
+<!-- Ogg (Opus) first, mp3 second. The browser takes the first it can play, so
+     Chrome/Firefox/Edge get the smaller file and Safari - which does not
+     support Opus in an Ogg container - still gets sound. The voiceover element
+     has no src here; bridge.js picks its extension the same way. -->
+<audio id="vo" preload="auto"></audio>
+<audio id="music" preload="auto" loop>
+  <source src="assets/audio/music.ogg" type="audio/ogg; codecs=opus" />
+  <source src="assets/audio/music.mp3" type="audio/mpeg" />
+</audio>
+<audio id="rain" preload="auto" loop>
+  <source src="assets/audio/rain.ogg" type="audio/ogg; codecs=opus" />
+  <source src="assets/audio/rain.mp3" type="audio/mpeg" />
+</audio>
+
+<script src="story.js"></script>
+<script src="app.js"></script>
+<script src="studio.js"></script>
+<script src="bridge.js"></script>
+</body>
+</html>
