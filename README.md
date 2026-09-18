@@ -13,6 +13,13 @@ scenes 1–10        →        THE GAME        →        scenes 11–12
  negative numbers"          sentences                stored rainwater"
 ```
 
+**The story plays itself.** There is no Auto button: it starts scrolling the
+moment the reader presses Begin. Scrolling by hand only *pauses* it - with no
+button to press, ending it outright would strand them - and it picks itself
+back up after `AUTO_RESUME_MS` (2.6 s) from wherever they stopped. The space
+bar is a real pause, held until pressed again, and the game overlay holds it
+too so the story cannot scroll on behind it.
+
 There is also a **Game** button in the bar at the bottom, which goes straight
 into the game from anywhere and returns the reader to where they left off.
 
