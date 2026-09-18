@@ -159,17 +159,17 @@
   // Anything a row leaves out falls back to the seed derived from story.js.
   const PLACED = [
     { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center" },
-    { kind: "bubble", left: 50, top: 5, width: 46, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 58, top: 4, width: 40, size: 1, align: "left", tailFlip: true },
+    { kind: "bubble", left: 37.44, top: 13.55, width: 25.68, size: 1, align: "left", tailFlip: true },
+    { kind: "bubble", left: 33.37, top: 1.81, width: 26.4, size: 1, align: "left", tailFlip: true },
     { kind: "bubble", left: 37.73, top: 7.87, width: 25.73, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 40.14, top: 2.66, width: 37.90, size: 1, align: "left", tailFlip: true },
+    { kind: "bubble", left: 40.14, top: 2.66, width: 37.9, size: 1, align: "left", tailFlip: true },
     { kind: "bubble", left: 1.93, top: 4.64, width: 39.45, size: 1, align: "left", tailFlip: true },
     { kind: "bubble", left: 58.19, top: 37.78, width: 41.22, size: 1, align: "left", tailFlip: true },
     { kind: "bubble", left: 26.83, top: 13, width: 31.93, size: 1, align: "left", tailFlip: true },
     { kind: "bubble", left: 29.15, top: 3.78, width: 34.02, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 57, top: 5, width: 41, size: 1, align: "left", tailFlip: true },
+    { kind: "bubble", left: 34.39, top: 18.82, width: 31.83, size: 1, align: "left", tailFlip: true },
     { kind: "bubble", left: 62, top: 3, width: 36, size: 1, align: "left", tailFlip: true },
-    { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center" },
+    { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center" }
   ];
 
   // every visual property of a caption lives here so Studio mode can edit it
