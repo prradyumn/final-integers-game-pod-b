@@ -16,7 +16,6 @@
   const gate = $("#gate");
   const hud = $("#hud");
   const hudBar = $("#hudBar");
-  const autoBtn = $("#autoBtn");
   const soundBtn = $("#soundBtn");
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -26,6 +25,15 @@
   let muted = false;
   let current = 0;
   let autoPlaying = false;
+  /* The story plays itself: there is no Auto button any more, so a reader who
+     scrolls must only PAUSE it, never end it - with nothing to press, ending
+     it would strand them. Any manual input hands control over for
+     AUTO_RESUME_MS and then the story carries on from wherever they are.
+     `autoHeld` is the one thing that stops it for good: the game overlay sets
+     it while it is up, and the space bar toggles it as a real pause. */
+  const AUTO_RESUME_MS = 2600;
+  let autoHeld = false;
+  let autoResumeTimer = 0;
   let autoRAF = 0;
   let speakTimer = 0;
   let beatTops = [];
@@ -356,9 +364,10 @@
 
   /* -------------------------------------------------------------- autoplay */
   function startAuto() {
+    if (autoHeld) return;
+    clearTimeout(autoResumeTimer);
     autoPlaying = true;
     hud.classList.add("is-playing");
-    autoBtn.setAttribute("aria-label", "Pause the story");
     let last = performance.now();
     const pps = window.innerHeight * 0.17;
     const tick = (now) => {
@@ -376,7 +385,16 @@
     autoPlaying = false;
     cancelAnimationFrame(autoRAF);
     hud.classList.remove("is-playing");
-    autoBtn.setAttribute("aria-label", "Play the story automatically");
+  }
+
+  /* the reader took the wheel - give it back after a beat */
+  function nudgeAuto() {
+    if (!started || autoHeld) return;
+    stopAuto();
+    clearTimeout(autoResumeTimer);
+    autoResumeTimer = setTimeout(() => {
+      if (started && !autoHeld) startAuto();
+    }, AUTO_RESUME_MS);
   }
 
   /* ------------------------------------------------------------------ rain */
@@ -433,21 +451,30 @@
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", () => { fitStage(); onScroll(); });
 
-  autoBtn.addEventListener("click", () => (autoPlaying ? stopAuto() : startAuto()));
   soundBtn.addEventListener("click", () => { muted = !muted; applyMute(); });
   $("#replay").addEventListener("click", () => {
     stopAuto();
+    autoHeld = false;
     window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => startAuto(), 700);       // read it again, and it plays again
   });
 
-  ["wheel", "touchstart"].forEach((ev) =>
-    window.addEventListener(ev, () => { if (autoPlaying) stopAuto(); }, { passive: true }));
+  ["wheel", "touchstart", "pointerdown"].forEach((ev) =>
+    window.addEventListener(ev, nudgeAuto, { passive: true }));
 
   document.addEventListener("keydown", (e) => {
-    if (e.target.matches("input,textarea")) return;
+    /* keydown can arrive with the Document itself as the target, which has no
+       .matches - without this guard the handler throws and every shortcut
+       below it (including the space pause) silently stops working. */
+    if (e.target && e.target.matches && e.target.matches("input,textarea")) return;
     if (e.key === "m" || e.key === "M") { muted = !muted; applyMute(); }
-    if (e.key === " " && started) { e.preventDefault(); autoPlaying ? stopAuto() : startAuto(); }
-    if (autoPlaying && ["ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) stopAuto();
+    /* space is now a real pause, since nothing else can stop it for good */
+    if (e.key === " " && started) {
+      e.preventDefault();
+      autoHeld = !autoHeld;
+      if (autoHeld) stopAuto(); else startAuto();
+    }
+    if (["ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) nudgeAuto();
   });
 
   $("#beginBtn").addEventListener("click", () => {
@@ -460,6 +487,7 @@
     ramp(music, LEVELS.music, 1600);
     ramp(rain, LEVELS.rain, 1600);
     speak(current);
+    startAuto();                 // the story plays itself from here
   });
 
   /* ------------------------------------------------------------------ boot */
@@ -482,6 +510,14 @@
       if (started) speak(i);
     },
     freeze() { stopAuto(); vo.pause(); },
+    /* the game overlay holds autoplay while it is on screen, and releases it
+       on the way out - see bridge.js */
+    holdAuto(on) {
+      autoHeld = !!on;
+      clearTimeout(autoResumeTimer);
+      if (autoHeld) stopAuto();
+      else if (started) startAuto();
+    },
     revealAll(i) {
       chars[i].forEach((c) => c.el.classList.add("on"));
       lastLit[i] = chars[i].length - 1;

@@ -95,6 +95,69 @@ No screen, rule, timing or piece of game logic was modified.
   the game's frame is destroyed on exit so nothing can play behind a hidden
   panel.
 
+## Assets
+
+Everything ships in a modern format, with a fallback only where one is needed.
+
+| | Before | After |
+| --- | --- | --- |
+| Images | 13.0 MB PNG | **1.4 MB WebP** (−89%) |
+| Audio | 8.8 MB MP3 | **3.6 MB Ogg/Opus** (−59%) |
+| Unused art removed | | **9 MB** |
+
+**Images are WebP only.** Every PNG was converted at its original pixel
+dimensions (`cwebp -q 86 -alpha_q 100 -m 6 -sharp_yuv`), so nothing was resized
+and alpha is intact. WebP is supported everywhere this runs, so there is no
+fallback and no PNG left in the tree.
+
+The 9 MB of deleted art was: four 1920×1080 design mock-ups under
+`game/assets/img/reference/` that nothing referenced, the three retired bubble
+files the storybook's own README already called retired, and a stray duplicate
+`speech-bubble.png` in `assets/scenes/`.
+
+**Audio ships as both Ogg and MP3**, and that is deliberate. Opus is roughly
+40% of the size, but **Safari cannot play Opus in an Ogg container** — shipping
+Ogg alone would have silently killed the sound on every iPad and iPhone. So the
+format is chosen at run time:
+
+* the two beds in `index.html` use `<source>` elements and let the browser pick;
+* `bridge.js` rewrites `STORY[i].audio` to `.ogg` when `canPlayType` says yes;
+* `game.js` does the same through `audioSrc()` for its SFX and its 85 voice clips.
+
+Chrome, Firefox and Edge fetch only the Ogg files; Safari falls back to MP3.
+If you only ever target Chrome, deleting every `*.mp3` saves a further 8.8 MB
+and nothing needs to change in code.
+
+Bitrates: 24 kbps mono for speech, 64 kbps stereo for the music and rain beds.
+All 105 converted files were checked against their originals — every duration
+matches to within 0.12 s.
+
+## Two causes of the caption jump
+
+The dialogue box moved up and down while a line typed. There were **two**
+separate causes, and both are fixed.
+
+**The caret.** `app.js` walks the caret element through the text, re-inserting
+it before whichever letter comes next. It was an `inline-block` with
+`width:.075em` and `margin-left:.04em`, so that ~0.115em travelled with it —
+enough to push the last word of a line over the edge and back as it went. The
+caption re-wrapped, changed height, and jumped. Measured at 1440×900, scene 5's
+text block went **180px → 225px** part-way through the line, a whole extra line
+appearing and vanishing.
+
+It is now zero-width, with the visible bar drawn by an absolutely positioned
+`::after` — out of flow, so it cannot influence line breaking. See the comment
+on `.caret` in styles.css.
+
+**The font.** Poppins came from Google Fonts with `display=swap`, so the
+captions laid out in the fallback face and were re-laid out when Poppins
+arrived. Scenes 1 and 12 changed height by 7px at that moment. Poppins is now
+self-hosted in `assets/fonts/` (23 KB, three weights) with `font-display:block`,
+and the page makes **no network request at all**.
+
+Verified per-letter across 16 viewport widths from 360 to 2560, plus a full
+hand-scrolled read and 60 s of Auto playback: no caption changes height.
+
 ## Playing just the game
 
 Open `game/index.html`. It behaves exactly as it always has, including

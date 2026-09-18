@@ -85,7 +85,11 @@
     returnTo = back;
 
     const b = book();
-    if (b && b.freeze) b.freeze();     // stops Auto and pauses the voiceover
+    if (b && b.freeze) b.freeze();     // stops autoplay and pauses the voiceover
+    /* and keep it stopped: the story now plays itself, so without this it
+       would carry on scrolling behind the game and be somewhere else by the
+       time the reader came back */
+    if (b && b.holdAuto) b.holdAuto(true);
     hushStory();
 
     /* hold the page exactly where it is; the story is scroll-driven, so
@@ -133,6 +137,9 @@
     if (b && typeof returnTo === 'number' && b.gotoScene) b.gotoScene(returnTo);
     else window.scrollTo(0, scrollY);
     resumeStory();
+    /* hand the story back to itself, after the scene it landed on has had a
+       moment to start speaking */
+    if (b && b.holdAuto) setTimeout(() => b.holdAuto(false), 900);
   }
 
   /* ─────────────────────── where the story hands over ─────────────────── */
@@ -141,6 +148,7 @@
     played = true;                       // offered once, however they answer
     const b = book();
     if (b && b.freeze) b.freeze();
+    if (b && b.holdAuto) b.holdAuto(true);
     hushStory();
     scrollY = window.scrollY;
     document.documentElement.style.overflow = 'hidden';
@@ -149,12 +157,16 @@
     handoff.setAttribute('aria-hidden', 'false');
   }
 
-  function dismissHandoff(){
+  function dismissHandoff(skipping){
     handoff.classList.remove('is-on');
     handoff.setAttribute('aria-hidden', 'true');
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
     resumeStory();
+    /* only when they are carrying on with the story - if they are going into
+       the game, openGame() is about to take the screen anyway */
+    const b = book();
+    if (skipping && b && b.holdAuto) b.holdAuto(false);
   }
 
   window.addEventListener('scroll', () => {
@@ -167,7 +179,7 @@
     dismissHandoff();
     openGame(GAME_BEFORE_INDEX);
   });
-  $('#handoffSkip').addEventListener('click', dismissHandoff);
+  $('#handoffSkip').addEventListener('click', () => dismissHandoff(true));
 
   /* the button in the HUD: straight into the game from anywhere, and back to
      wherever the reader was when they left */
