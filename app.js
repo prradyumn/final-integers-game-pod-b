@@ -19,6 +19,9 @@
   const soundBtn = $("#soundBtn");
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* Which point down the viewport decides "the scene you are on". It was
+     written out twice, and the two uses have to agree - see layoutBeats(). */
+  const HEAD = 0.34;
   const LEVELS = { music: 0.30, rain: 0.26, duckMusic: 0.09, duckRain: 0.12 };
 
   let started = false;
@@ -41,9 +44,18 @@
 
   const layers = [];
   const bubbles = [];
-  const carets = [];
-  const chars = [];          // chars[sceneIndex] = [{el, at}]
-  const lastLit = [];
+  const words = [];          // words[sceneIndex] = [{el, s, e}]
+  const lastSpoken = [];
+
+  /* The words the lesson turns on. The typewriter used to be what drew the eye
+     through a line; it is gone, so the emphasis has to come from the words
+     themselves. These are marked once, when the caption is built, and stay
+     marked - a reader glancing at scene 6 should see "above zero" and "more"
+     before they have read a word of the rest. Deliberately short: it covers
+     the five teaching scenes and leaves the seven narrative ones untouched,
+     which is what makes it read as emphasis rather than decoration. */
+  const KEYWORD = /^(zero|above|below|positive|negative|more|less|reference|[+\u2212-]?\d+)$/i;
+  const isKey = (w) => KEYWORD.test(w.replace(/[^\w+\u2212-]/g, ""));
 
   /* ---------------------------------------------------------------- build */
   function pickSrc(sc) {
@@ -73,38 +85,25 @@
     tx.className = "tx";
     const list = [];
 
+    /* One span per word, holding the whole word. There are no per-letter spans
+       and no caret any more: the line is fully rendered from the moment the
+       scene opens, so its box is the size it will stay and nothing can re-wrap
+       or resize underneath the reader. The word timings from the .srt files
+       are still used - they now drive which word is lit as it is spoken. */
     sc.words.forEach((word, wi) => {
-      const span = Math.max(0.04, word.e - word.s);
-      const letters = [...word.t];
       const wEl = document.createElement("span");
-      wEl.className = "wd";
-      letters.forEach((chr, j) => {
-        const c = document.createElement("span");
-        c.className = "ch";
-        c.textContent = chr;
-        wEl.appendChild(c);
-        // each letter lands inside its own word's slot -> perfectly lip-synced
-        list.push({ el: c, at: word.s + span * (j / letters.length) });
-      });
+      wEl.className = isKey(word.t) ? "wd key" : "wd";
+      wEl.textContent = word.t;
       tx.appendChild(wEl);
-      if (wi < sc.words.length - 1) {
-        const sp = document.createElement("span");
-        sp.className = "ch sp";
-        sp.textContent = " ";
-        tx.appendChild(sp);
-        list.push({ el: sp, at: word.e });
-      }
+      list.push({ el: wEl, s: word.s, e: word.e });
+      if (wi < sc.words.length - 1) tx.appendChild(document.createTextNode(" "));
     });
 
-    const caret = document.createElement("span");
-    caret.className = "caret";
     box.appendChild(tx);
-    tx.appendChild(caret);
     overlay.appendChild(box);
 
-    chars.push(list);
-    carets.push(caret);
-    lastLit.push(-1);
+    words.push(list);
+    lastSpoken.push(-1);
     return box;
   }
 
@@ -112,7 +111,10 @@
     const img = document.createElement("img");
     img.className = "layer";
     img.src = pickSrc(sc);
-    img.alt = "";
+    /* every scene image used to be alt="" - decorative - which is right only
+       when the text beside it says the same thing. Here the picture IS the
+       lesson, so it gets described. */
+    img.alt = sc.text ? "Scene " + (i + 1) + ": " + sc.text : "Scene " + (i + 1);
     img.decoding = "async";
     if (i > 1) img.loading = "lazy";
     layersEl.appendChild(img);
@@ -158,18 +160,18 @@
   // "Copy all JSON" hands back, so a new export can be pasted straight in.
   // Anything a row leaves out falls back to the seed derived from story.js.
   const PLACED = [
-    { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center" },
-    { kind: "bubble", left: 37.44, top: 13.55, width: 25.68, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 33.37, top: 1.81, width: 26.4, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 37.73, top: 7.87, width: 25.73, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 40.14, top: 2.66, width: 37.9, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 1.93, top: 4.64, width: 39.45, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 58.19, top: 37.78, width: 41.22, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 26.83, top: 13, width: 31.93, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 29.15, top: 3.78, width: 34.02, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 34.39, top: 18.82, width: 31.83, size: 1, align: "left", tailFlip: true },
-    { kind: "bubble", left: 62, top: 3, width: 36, size: 1, align: "left", tailFlip: true },
-    { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center" }
+    { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center", },
+    { kind: "bubble", left: 37.44, top: 13.55, width: 25.68, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 33.37, top: 1.81, width: 26.4, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 37.73, top: 7.87, width: 25.73, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 40.14, top: 2.66, width: 37.9, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 1.93, top: 4.64, width: 39.45, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 58.19, top: 37.78, width: 41.22, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 26.83, top: 13, width: 31.93, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 29.15, top: 3.78, width: 34.02, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 34.39, top: 18.82, width: 31.83, size: 1, align: "left", tailFlip: true, },
+    { kind: "bubble", left: 62, top: 3, width: 36, size: 1, align: "left", tailFlip: true, },
+    { kind: "narration", bottom: 13, width: 76, size: 0.86, align: "center", }
   ];
 
   // every visual property of a caption lives here so Studio mode can edit it
@@ -227,7 +229,14 @@
     let top = 0;
     beatTops = []; beatHeights = [];
     [...beatsEl.children].forEach((el, i) => {
-      const h = Math.max(vh * 0.62, STORY[i].dur * pps);
+      let h = Math.max(vh * 0.62, STORY[i].dur * pps);
+      /* The reading head sits HEAD down the viewport, so at scrollY 0 it is
+         already that far into the track - and the first beat, alone, has no
+         earlier scroll to absorb it. Without this the opening line lost the
+         difference: measured 4.86s of screen time for a 6.72s narration, and
+         the story moved on mid-sentence. Every later scene is unaffected,
+         because the head enters and leaves those beats with the same offset. */
+      if (i === 0) h += vh * HEAD;
       el.style.height = h + "px";
       beatTops.push(top); beatHeights.push(h);
       top += h;
@@ -249,16 +258,24 @@
   // if the voiceover can't load or is slow, the captions still type on their own clock
   let clockBase = null;
   let clockWatch = 0;
+  /* The captions do not read the voice directly - if the audio is slow or
+     missing, a wall clock takes over so the text still types. That fallback is
+     why pausing `vo` was not enough to stop scene 11 typing itself out behind
+     the handoff card: 900ms later clockWatch saw a paused element, decided the
+     audio had failed, and typed the whole line on the wall clock. Freezing has
+     to stop that clock too. */
+  let frozen = false;
 
   function speak(i) {
     if (!started || i !== current) return;
+    frozen = false;
     resetType(i);
     clockBase = null;
     clearTimeout(clockWatch);
     vo.pause();
     vo.src = STORY[i].audio;
     vo.currentTime = 0;
-    bubbles[i].classList.add("is-typing");
+
     vo.play().catch(() => { clockBase = performance.now(); });
     clockWatch = setTimeout(() => {
       if (vo.paused || vo.readyState < 2) clockBase = performance.now();
@@ -269,41 +286,33 @@
   vo.addEventListener("error", () => { clockBase = performance.now(); });
 
   function resetType(i) {
-    if (lastLit[i] === -1) return;
-    chars[i].forEach((c) => c.el.classList.remove("on"));
-    lastLit[i] = -1;
-    bubbles[i].classList.remove("is-typing");
-    const tx = bubbles[i].querySelector(".tx");
-    if (tx) tx.appendChild(carets[i]);
+    if (lastSpoken[i] === -1) return;
+    words[i].forEach((w) => w.el.classList.remove("now"));
+    lastSpoken[i] = -1;
   }
 
+  /* The line is already on screen; this only says WHERE IN IT the voice is.
+     One word at a time, straight from the .srt timings, so a reader who is
+     following along can see what is being said without anything moving. */
   function paintType() {
-    // Studio mode shows the whole line - don't let the audio clock re-hide it
     if (document.body.classList.contains("studio")) return;
+    if (frozen) return;
     const i = current;
-    const list = chars[i];
+    const list = words[i];
     if (!list) return;
     const t = !started ? -1
       : clockBase !== null ? (performance.now() - clockBase) / 1000
       : vo.currentTime;
-    let lit = -1;
+
+    let idx = -1;
     for (let k = 0; k < list.length; k++) {
-      if (t >= list[k].at) lit = k; else break;
+      if (t >= list[k].s && t < list[k].e + 0.06) { idx = k; break; }
+      if (list[k].s > t) break;
     }
-    if (lit === lastLit[i]) return;
-
-    const from = Math.min(lastLit[i], lit);
-    for (let k = Math.max(0, from); k < list.length; k++) {
-      list[k].el.classList.toggle("on", k <= lit);
-    }
-    lastLit[i] = lit;
-
-    // park the caret exactly where the next letter will appear
-    const next = list[lit + 1];
-    const caret = carets[i];
-    if (next && next.el.parentNode) next.el.parentNode.insertBefore(caret, next.el);
-    else bubbles[i].querySelector(".tx").appendChild(caret);
-    bubbles[i].classList.toggle("is-typing", !!next && !vo.paused);
+    if (idx === lastSpoken[i]) return;
+    if (lastSpoken[i] >= 0 && list[lastSpoken[i]]) list[lastSpoken[i]].el.classList.remove("now");
+    if (idx >= 0) list[idx].el.classList.add("now");
+    lastSpoken[i] = idx;
   }
 
   /* ---------------------------------------------------------------- audio */
@@ -328,16 +337,14 @@
   vo.addEventListener("pause", () => duck(false));
   vo.addEventListener("ended", () => {
     duck(false);
-    const list = chars[current];
-    list.forEach((c) => c.el.classList.add("on"));
-    lastLit[current] = list.length - 1;
-    bubbles[current].classList.remove("is-typing");
+    resetType(current);          // drop the "speaking now" mark; the text stays
   });
 
   function applyMute() {
     [vo, music, rain].forEach((a) => { a.muted = muted; });
     hud.classList.toggle("is-muted", muted);
     soundBtn.setAttribute("aria-label", muted ? "Unmute all sound" : "Mute all sound");
+    soundBtn.setAttribute("aria-pressed", muted ? "true" : "false");
   }
 
   /* --------------------------------------------------------------- scroll */
@@ -346,18 +353,33 @@
   }
 
   function onScroll() {
-    const head = window.scrollY + window.innerHeight * 0.34;
+    const head = window.scrollY + window.innerHeight * HEAD;
     let i = 0;
     for (let k = 0; k < beatTops.length; k++) if (head >= beatTops[k]) i = k;
     const frac = Math.max(0, Math.min(1, (head - beatTops[i]) / beatHeights[i]));
     setScene(i);
 
-    const f = layers[i + 1] ? Math.max(0, (frac - 0.84) / 0.16) : 0;
+    /* The old cross-dissolve ended with the outgoing scene still at 0.5 while
+       the incoming one was at 1 - two tanks, two number lines and two Guddus
+       on screen at once. On a story about READING a number line that is the
+       worst thing the transition could do.
+
+       They now hand over rather than blend: the outgoing scene is most of the
+       way gone before the incoming one is anywhere near readable, so they only
+       ever coincide at around 9% each, which is a soft cut rather than a
+       double exposure. */
+    const f = layers[i + 1] ? Math.max(0, (frac - 0.90) / 0.10) : 0;
+    const out = Math.min(1, f / 0.55);
+    const inn = Math.max(0, Math.min(1, (f - 0.45) / 0.55));
     for (let k = 0; k < layers.length; k++) {
-      layers[k].style.opacity = k === i ? (1 - f * 0.5).toFixed(3)
-        : k === i + 1 ? f.toFixed(3) : "0";
+      layers[k].style.opacity = k === i ? (1 - out).toFixed(3)
+        : k === i + 1 ? inn.toFixed(3) : "0";
     }
     bubbles[i].style.opacity = f > 0 ? String(Math.max(0, 1 - f * 1.5)) : "";
+    /* the bar said "paused" the instant a hand touched the wheel, while the
+       line carried on narrating for several more seconds - it now follows the
+       voice, which is what a reader is actually waiting on */
+    hud.classList.toggle("is-speaking", !vo.paused);
 
     hudBar.style.width = (Math.min(1, head / totalScroll()) * 100).toFixed(1) + "%";
   }
@@ -453,10 +475,18 @@
 
   soundBtn.addEventListener("click", () => { muted = !muted; applyMute(); });
   $("#replay").addEventListener("click", () => {
+    /* A smooth scroll from the end card takes far longer than the 700ms this
+       used to wait, so autoplay started part-way up and the reader landed in
+       the middle of the story. Jump instead, reset the scene properly, and
+       only then start playing. */
     stopAuto();
     autoHeld = false;
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setTimeout(() => startAuto(), 700);       // read it again, and it plays again
+    clearTimeout(speakTimer);
+    vo.pause();
+    window.scrollTo(0, 0);
+    current = -1;                 // force setScene(0) to count as a change
+    onScroll();
+    setTimeout(() => { if (started) startAuto(); }, 260);
   });
 
   ["wheel", "touchstart", "pointerdown"].forEach((ev) =>
@@ -477,8 +507,16 @@
     if (["ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) nudgeAuto();
   });
 
+  /* locked until Begin: see body.gated in styles.css */
+  document.documentElement.classList.add("gated");
+
   $("#beginBtn").addEventListener("click", () => {
     started = true;
+    document.documentElement.classList.remove("gated");
+    /* whatever happened before this, the story starts at its beginning */
+    window.scrollTo(0, 0);
+    current = -1;
+    onScroll();
     gate.classList.add("is-gone");
     hud.classList.add("is-on");
     music.volume = 0; rain.volume = 0;
@@ -504,12 +542,35 @@
     scene: () => current,
     gotoScene(i) {
       stopAuto();
-      const top = beatTops[i] + beatHeights[i] * 0.35 - window.innerHeight * 0.34;
+      const top = beatTops[i] + beatHeights[i] * 0.35 - window.innerHeight * HEAD;
       window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
       onScroll();
       if (started) speak(i);
     },
-    freeze() { stopAuto(); vo.pause(); },
+    /* clearTimeout(speakTimer) is the whole fix for scene 11 playing behind
+       the handoff card. setScene() does not speak immediately - it arms a
+       130ms timer - so pausing `vo` alone stopped the line that was playing
+       and then let the NEXT one start a moment later, behind the overlay. */
+    freeze() {
+      stopAuto();
+      clearTimeout(speakTimer);
+      clearTimeout(clockWatch);
+      clockBase = null;
+      frozen = true;
+      vo.pause();
+    },
+    /* The other half of freeze(): picks the line up exactly where it stopped
+       rather than starting it again. Leaving the tab must not cost the reader
+       the sentence they were half way through, and must not replay it either. */
+    thaw() {
+      frozen = false;
+      if (!started) return;
+      if (clockBase !== null) return;          // the wall-clock fallback owns it
+      if (vo.src && vo.paused && vo.currentTime > 0 &&
+          (!vo.duration || vo.currentTime < vo.duration)) {
+        vo.play().catch(() => { clockBase = performance.now(); });
+      }
+    },
     /* the game overlay holds autoplay while it is on screen, and releases it
        on the way out - see bridge.js */
     holdAuto(on) {
@@ -518,11 +579,9 @@
       if (autoHeld) stopAuto();
       else if (started) startAuto();
     },
-    revealAll(i) {
-      chars[i].forEach((c) => c.el.classList.add("on"));
-      lastLit[i] = chars[i].length - 1;
-      bubbles[i].classList.remove("is-typing");
-    },
+    /* kept for Studio, which used to need the line forced open. Every line is
+       fully rendered now, so this only has to clear the spoken-word mark. */
+    revealAll(i) { resetType(i); },
     replay(i) { speak(i); },
   };
   requestAnimationFrame(frame);

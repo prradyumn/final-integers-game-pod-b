@@ -1854,6 +1854,7 @@ const Game = {
     tankEl.classList.add('locked');
     nextBtn.hidden = true;
     clearTimeout(this.commitTimer);
+    markerEl.classList.remove('committing');
 
     Clip.warm(s);
     chapterName.textContent = CHAPTERS[s.chapter] || '';
@@ -2025,11 +2026,24 @@ const Game = {
      the clock starts over from wherever they stop next. */
   armCommit(){
     clearTimeout(this.commitTimer);
+    /* Resting here IS the answer, and until now nothing said so: the screen
+       sat still for 900ms and then decided. A learner pausing to think had an
+       answer submitted for them with no warning. The marker now fills a ring
+       over exactly that window, so the commitment is something you can watch
+       coming and interrupt by touching the marker again. */
+    markerEl.style.setProperty('--commitMs', COMMIT_MS + 'ms');
+    markerEl.classList.remove('committing');
+    void markerEl.offsetWidth;                 // restart it if it is already running
+    markerEl.classList.add('committing');
     this.commitTimer = setTimeout(() => {
+      markerEl.classList.remove('committing');
       if (this.interactive && !this.solved) this.check();
     }, COMMIT_MS);
   },
-  cancelCommit(){ clearTimeout(this.commitTimer); },
+  cancelCommit(){
+    clearTimeout(this.commitTimer);
+    markerEl.classList.remove('committing');
+  },
 
   /* The symbolic commitment: the learner names where they landed. The tap IS
      the answer — there is no second button to confirm it — so it closes the
@@ -2080,6 +2094,7 @@ const Game = {
   async check(){
     if (this.solved) return;
     clearTimeout(this.commitTimer);
+    markerEl.classList.remove('committing');
     this.interactive = false;
     Ghost.stop();
     clearTimeout(this.idleTimer);
@@ -2288,6 +2303,21 @@ $('#muteBtn').addEventListener('click', e => {
   else { Audio_.resumeLoops(); }
 });
 
+/* the rotate prompt is CSS-driven, but it must not sit over a landscape
+   screen once the media query stops matching, and it must not appear at all
+   on a desktop window that merely happens to be tall */
+(() => {
+  const el = $('#rotate');
+  if (!el) return;
+  const sync = () => {
+    const portrait = window.innerHeight > window.innerWidth;
+    el.hidden = !(portrait && window.innerWidth <= 760);
+  };
+  sync();
+  window.addEventListener('resize', sync);
+  window.addEventListener('orientationchange', () => setTimeout(sync, 120));
+})();
+
 $('#startBtn').addEventListener('click', () => {
   gate.classList.add('hide');
   setTimeout(() => { gate.style.display = 'none'; }, 520);
@@ -2345,6 +2375,12 @@ window.__SPRING = Spring;
 window.__MOTION = Motion;
 window.__FLOW = Flow;
 window.__AUDIO = Audio_;
+/* three more of the same: the control-room skin (controlroom.js, press P)
+   runs outside this closure and needs the water, the character and the
+   distractor builder. Exports only - nothing above this line changes. */
+window.__WATER = Water;
+window.__GUDDU = Guddu;
+window.__ANSWER_OPTIONS = answerOptions;
 
 /* the layout record is re-applied continuously so edits land at once */
 setInterval(applyLayout, 250);

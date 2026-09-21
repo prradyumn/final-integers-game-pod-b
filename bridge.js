@@ -188,6 +188,9 @@
        the game, openGame() is about to take the screen anyway */
     const b = book();
     if (skipping && b && b.holdAuto) b.holdAuto(false);
+    /* the card went up before this scene had said anything, so skipping past
+       it has to start the line, or the reader simply loses it */
+    if (skipping && b && b.replay) setTimeout(() => b.replay(b.scene()), 220);
   }
 
   window.addEventListener('scroll', () => {
@@ -200,7 +203,13 @@
     dismissHandoff();
     openGame(GAME_BEFORE_INDEX);
   });
-  $('#handoffSkip').addEventListener('click', () => dismissHandoff(true));
+  $('#handoffSkip').addEventListener('click', e => {
+    /* stopPropagation because the two buttons sit in the same card and a
+       stray bubble was the only way "Skip for now" could ever have opened
+       the game, which is what was reported once */
+    e.preventDefault(); e.stopPropagation();
+    dismissHandoff(true);
+  });
 
   /* the button in the HUD: straight into the game from anywhere, and back to
      wherever the reader was when they left */
@@ -215,6 +224,8 @@
     if (!d || d.source !== 'integers-game') return;
     if (d.type === 'exit') closeGame();
   });
+
+  $('#gameBack').addEventListener('click', closeGame);
 
   /* Esc leaves the game, the same as the button on its last screen */
   window.addEventListener('keydown', e => {
@@ -246,8 +257,23 @@
      The game already handles its own; this covers the story's three elements
      and the case of leaving the page altogether. */
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) hushStory();
-    else if (!open) resumeStory();
+    const b = book();
+    if (document.hidden) {
+      /* hushStory() only silences what is playing this instant, and the story
+         runs on its own clock. Without holding that clock too, a reader who
+         looks away comes back to a different scene - and the next line starts
+         speaking to an empty room the moment the old one is paused. Same
+         mechanism as the handoff card: the 130ms speak timer outlives a pause. */
+      if (b && b.freeze) b.freeze();
+      if (b && b.holdAuto) b.holdAuto(true);
+      hushStory();
+    } else if (!open && !handoff.classList.contains('is-on')) {
+      /* not while the game is up, and not while the handoff card is waiting -
+         both hold the story deliberately, and neither is ours to release */
+      if (b && b.thaw) b.thaw();
+      if (b && b.holdAuto) b.holdAuto(false);
+      resumeStory();
+    }
   });
   ['pagehide','beforeunload'].forEach(t =>
     window.addEventListener(t, () => {

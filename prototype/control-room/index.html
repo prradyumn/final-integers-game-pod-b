@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Control Room — camera test</title>
+<link rel="stylesheet" href="camera.css">
+
+<div id="fit">
+  <div id="stage">
+
+    <!-- ── the world: everything beyond the glass ── -->
+    <div id="world">
+      <div id="scenery"></div>
+      <div id="tank">
+        <div id="tankArt"></div>
+        <svg id="waterSvg" viewBox="0 0 198.5 398.4" preserveAspectRatio="none">
+          <rect id="water" x="0" y="0" width="198.5" height="0" fill="#2f9fd8" opacity=".85"/>
+          <g id="ticks"></g>
+        </svg>
+      </div>
+      <div id="glass"></div>
+    </div>
+
+    <!-- ── the room: this side of the glass ── -->
+    <div id="room">
+      <div id="wall"></div>
+      <div id="crew"></div>
+      <div id="console"></div>
+      <div id="pad"></div>
+      <div id="q">−2 + 4 = ?</div>
+    </div>
+
+  </div>
+</div>
+
+<div id="hud">
+  <b>Phase 0 — camera feasibility</b>
+  <span>mode</span>
+  <select id="mode">
+    <option value="dolly">dolly through the window (transform)</option>
+    <option value="cut">match cut (crossfade)</option>
+    <option value="bad">CONTROL: layout-animated (known jank)</option>
+  </select>
+  <button id="go">run</button>
+  <div id="out">tap a number, or press run</div>
+</div>
+
+<script src="camera.js"></script>

@@ -15,6 +15,7 @@
      page no longer needs the network to look right. -->
 <link rel="preload" href="assets/fonts/poppins-600.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="preload" href="assets/fonts/poppins-500.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" as="image" href="assets/scenes/cover.webp" />
 <link rel="preload" as="image" href="assets/scenes/01.webp" />
 <link rel="stylesheet" href="styles.css" />
 <script>
@@ -31,11 +32,13 @@ try { history.scrollRestoration = 'manual'; } catch (e) {}
 </head>
 <body>
 
+<!-- the stage is decorative to assistive tech EXCEPT the captions, which are
+     the story; #overlay carries aria-live and opts itself back in -->
 <div id="stage" class="stage" aria-hidden="true">
   <div id="layers" class="layers"></div>
   <canvas id="rainCanvas" class="rain-canvas"></canvas>
   <div class="vignette"></div>
-  <div id="overlay" class="overlay"></div>
+  <div id="overlay" class="overlay" aria-hidden="false" aria-live="polite" aria-atomic="true"></div>
 </div>
 
 <main id="scroller" class="scroller">
@@ -53,22 +56,29 @@ try { history.scrollRestoration = 'manual'; } catch (e) {}
 
 <div id="hud" class="hud">
   <div class="hud-progress" role="presentation"><span id="hudBar"></span></div>
+  <span id="hudState" class="hud-state" aria-hidden="true"></span>
   <button id="gameBtn" class="hud-btn hud-btn--game" type="button" aria-label="Play the water tank game">
     <span class="ico-game"></span><span class="hud-label">Game</span>
   </button>
-  <button id="soundBtn" class="hud-btn" type="button" aria-label="Mute all sound">
+  <button id="soundBtn" class="hud-btn" type="button" aria-pressed="false" aria-label="Mute all sound">
     <span class="ico-sound"></span>
   </button>
 </div>
 
+<!-- The cover art carries the title, so the gate is the artwork itself rather
+     than a card describing it. It is sized by the same --stage-w/h the scenes
+     use, so the title screen and the first scene occupy exactly the same frame
+     and Begin does not jump the composition. -->
 <div id="gate" class="gate">
-  <div class="gate-card">
-    <div class="gate-art"></div>
-    <p class="gate-eyebrow">Interactive storybook</p>
-    <h2>The Village Water Tank</h2>
-    <p class="gate-sub">Pari and Guddu Bhaiya learn what zero really means.<br />Turn your sound on, then scroll.</p>
-    <button id="beginBtn" type="button">Begin the story</button>
-    <p class="gate-hint">Scroll to move the story - or press <strong>Auto</strong> to let it play itself.</p>
+  <div class="gate-cover" role="img"
+       aria-label="The Rainy Day Challenge. Pari and Guddu Bhaiya stand beside a village water tank in the rain, its scale marked from plus three down to minus three.">
+    <div class="gate-actions">
+      <button id="beginBtn" class="start-btn" type="button" aria-label="Begin the story">
+        <span class="start-btn-art"></span>
+        <span class="sr-only">Begin the story</span>
+      </button>
+      <p class="gate-hint">It plays by itself. Scroll any time to move ahead, or press <strong>space</strong> to pause.</p>
+    </div>
   </div>
 </div>
 
@@ -82,6 +92,11 @@ try { history.scrollRestoration = 'manual'; } catch (e) {}
      out, so nothing of the game can play behind a hidden panel. -->
 <div id="gameWrap" class="game-wrap" aria-hidden="true">
   <div class="game-frame"><div id="gameMount" class="game-mount"></div></div>
+  <!-- Esc leaves the game, but nothing said so. A child who opened it from the
+       HUD mid-story, or who is stuck, needs a way back that is on the screen. -->
+  <button id="gameBack" class="game-back" type="button" aria-label="Leave the game and go back to the story">
+    <span class="game-back-arrow"></span><span>Back to the story</span>
+  </button>
   <div id="gameLoading" class="game-loading"><span></span><p>Loading the water tank…</p></div>
 </div>
 

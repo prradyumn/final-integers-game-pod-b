@@ -1,0 +1,142 @@
+/* ══════════════════════════════════════════════════════════════════════
+   CONTROL ROOM — a parallel skin over the same game.  Press P.
+
+   Everything here is additive and scoped under `body.cr`, so with the mode
+   off not one rule applies and the game is exactly the game.  Nothing in
+   game.js is edited: this reads `Game` and drives `Water` through the same
+   public calls the editor already uses.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* The world — the real backdrop, river, weather and tank — is moved into
+   this wrapper while the mode is on, so one transform is the camera. With
+   the mode off the wrapper does not exist at all. */
+/* the pose maths in controlroom.js composes its own translate, so both
+   planes must pivot on the stage origin and nowhere else */
+#crCam{ position:absolute; inset:0; transform-origin:0 0;
+        will-change:transform; backface-visibility:hidden; z-index:1 }
+
+/* The scene is 16:9 and the opening is wider than that, so fitting the whole
+   tank in by height leaves a strip down each side. Rather than crop the tank
+   - which is the one thing that must never be cut - the gap is backed with
+   the backdrop's own sky, sampled from scene-background.webp. */
+#crSky{ position:absolute; inset:0; z-index:0; pointer-events:none;
+        background:linear-gradient(#5fb8fd, #93d6fd) }
+
+/* ── this side of the glass ───────────────────────────────────────────
+   The room is ONE plane and everything standing in it belongs to that
+   plane: the painted wall, the glare on the pane, Guddu, his speech and
+   the keypad. So they are all children of #crRoom and share its transform,
+   which is what makes them sweep past the camera together on the way out
+   instead of hanging in the air over the tank. */
+#crRoom{ position:absolute; inset:0; z-index:2; pointer-events:none;
+         transform-origin:0 0; will-change:transform, opacity;
+         backface-visibility:hidden }
+
+#crWall{ position:absolute; inset:0; z-index:2; pointer-events:none;
+         background:url('assets/room/room.webp') center/100% 100% no-repeat }
+
+/* glare on the pane — CSS rather than a texture, so it costs nothing. It
+   sits UNDER the wall, so the painted frame crops it to the opening. */
+#crGlass{ position:absolute; left:321px; top:215px; width:804px; height:437px;
+          z-index:1; pointer-events:none; opacity:.5;
+          background:linear-gradient(107deg, transparent 18%, rgba(255,255,255,.5) 26%,
+                     rgba(255,255,255,.14) 33%, transparent 41%, transparent 62%,
+                     rgba(255,255,255,.3) 68%, transparent 74%) }
+
+#crUi{ position:absolute; inset:0; z-index:5; pointer-events:none }
+
+/* ── the keypad ────────────────────────────────────────────────────────
+   A phone dialer bolted to the desk. Drawn in CSS rather than painted,
+   deliberately: the camera pushes in to 2.4x on it, and a raster keypad
+   would be soft exactly where the learner is looking hardest. Borders and
+   text stay sharp at any zoom. */
+#crPad{ position:absolute; pointer-events:auto;
+        display:flex; flex-direction:column; gap:9px; padding:11px;
+        border-radius:18px; border:4px solid #4a3218;
+        background:linear-gradient(#2f6f76, #1f5259);
+        box-shadow:0 12px 0 #14383d, 0 18px 26px rgba(30,20,8,.45),
+                   inset 0 3px 0 rgba(255,255,255,.18) }
+#crPad.done{ opacity:.45; pointer-events:none }
+
+/* the readout: what has been dialled so far */
+#crRead{ height:58px; border-radius:10px; border:3px solid #4a3218;
+         background:linear-gradient(#fdf6dd,#f2e2b4);
+         display:grid; place-items:center;
+         font:800 36px/1 'Baloo 2',system-ui,sans-serif; color:#2f4a52;
+         box-shadow:inset 0 3px 8px rgba(90,60,20,.28) }
+#crRead.empty{ color:#a9a08a }
+#crRead.sent{ background:linear-gradient(#fff2b8,#ffd25e); color:#5a3a12 }
+
+#crGrid{ flex:1; display:grid; grid-template-columns:repeat(3,1fr);
+         grid-template-rows:repeat(3,1fr); gap:8px }
+
+.crKey{ border:3px solid #4a3218; border-radius:11px; padding:0; cursor:pointer;
+        background:linear-gradient(#fff8e6,#f0dcb0); color:#3a2a14;
+        font:800 32px/1 'Baloo 2',system-ui,sans-serif;
+        box-shadow:0 4px 0 #b9935a, inset 0 2px 0 rgba(255,255,255,.7);
+        transition:transform .1s ease, box-shadow .1s ease, background .14s ease }
+.crKey:hover{ background:linear-gradient(#fffdf4,#f7e9c8) }
+.crKey:active,.crKey.hit{ transform:translateY(4px);
+        box-shadow:0 0 0 #b9935a, inset 0 2px 0 rgba(255,255,255,.7) }
+.crKey.sign{ background:linear-gradient(#ffd98a,#eeab46); font-size:36px }
+.crKey.sign.on{ background:linear-gradient(#8fe0a2,#3fb864); color:#14421f;
+                box-shadow:0 4px 0 #2b7a44, inset 0 2px 0 rgba(255,255,255,.7) }
+.crKey[disabled]{ cursor:default; filter:grayscale(.4) brightness(.94) }
+
+/* the question, on the game's own panel art */
+#crQ{ position:absolute; left:900px; top:690px; width:470px; height:112px;
+      display:grid; place-items:center; pointer-events:none;
+      background:url('assets/img/panel-frame.webp') center/100% 100% no-repeat;
+      font:800 58px/1 'Baloo 2',system-ui,sans-serif; color:#8a3b00;
+      letter-spacing:.02em }
+
+
+/* ── what the room hides ──────────────────────────────────────────────
+   The drag affordances have no meaning here: the keypad is the whole
+   input, and a hand inviting a drag through a window would be a lie. */
+body.cr #ghost,
+body.cr #hopCount,
+body.cr #startPin,
+body.cr #answerTiles,
+body.cr #eqPanel,
+body.cr #eqRoles,
+body.cr #chapterTag{ display:none !important }
+body.cr #marker{ pointer-events:none }
+/* the flow is held the whole time the room is up, so the editor's "SCREEN
+   HELD" banner would be on screen permanently and mean nothing here */
+body.cr.held #stage::before{ display:none !important }
+
+/* Guddu comes into the room and stands behind the desk, so his feet finish
+   on the wooden edge rather than floating over it */
+/* In the control room he is drawn from the side, watching the window, so the
+   front-facing poses are swapped for the one side view and he is stood on the
+   floor at the right rather than floated against the wall. */
+body.cr #guddu{ left:1402px; top:322px; width:392px; height:584px; z-index:3;
+                background:url('assets/room/guddu-side.webp') bottom center/contain no-repeat;
+                filter:drop-shadow(0 14px 16px rgba(60,40,20,.28)) }
+body.cr #guddu .pose{ display:none !important }
+body.cr #guddu.crYes{ animation:crHop .62s ease }
+body.cr #guddu.crNo { animation:crShake .5s ease }
+@keyframes crHop  { 0%,100%{transform:translateY(0)} 30%{transform:translateY(-22px)} 60%{transform:translateY(-6px)} }
+@keyframes crShake{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-9px)} 45%{transform:translateX(8px)} 70%{transform:translateX(-5px)} }
+body.cr #bubble{ z-index:4 }
+
+/* the verdict, said in the room rather than only heard */
+#crFeed{ position:absolute; left:860px; top:820px; width:560px; min-height:60px;
+         display:grid; place-items:center; text-align:center; pointer-events:none;
+         font:700 26px/1.3 'Baloo 2',system-ui,sans-serif; color:#5a3a12;
+         opacity:0; transform:translateY(8px); transition:opacity .22s ease, transform .22s ease }
+#crFeed.on{ opacity:1; transform:none }
+#crFeed.yes{ color:#1d7a32 }
+#crFeed.no { color:#b23a1d }
+
+/* the marker is the game's own; this only lights it where it came to rest */
+body.cr #marker.crRight{ filter:drop-shadow(0 0 16px rgba(60,220,110,.95)) }
+
+#crBadge{ position:absolute; left:18px; top:18px; z-index:6; pointer-events:none;
+          font:700 13px/1 system-ui,sans-serif; letter-spacing:.14em;
+          color:#fff; background:rgba(20,26,36,.6); padding:7px 11px; border-radius:8px }
+
+@media (prefers-reduced-motion:reduce){
+  #crCam,#crRoom{ will-change:auto }
+}

@@ -68,15 +68,32 @@ falls nearest the speaker.
 Narrator scenes (1 and 12) use `{"kind":"narration","bottom","width","size","align"}`
 instead — they're a caption band, not a bubble.
 
-## How the typewriter stays in sync
+## Emphasis, not reveal
 
-`story.js` is generated from your `.srt` files, which carry **word-level** timings.
-Each letter is given its own reveal time inside its word's slot, so the text types
-at exactly the pace of the voice. Every glyph is in the DOM from the start (hidden
-with `visibility`), so the text never re-wraps as it types.
+The captions used to type themselves out letter by letter. That is gone. It
+cost two things that were not worth it: a bubble sitting at its full final size
+while holding two words, and a caret that had to be kept out of the line
+breaking or the text re-wrapped mid-line.
 
-If a voiceover file fails to load or is slow, a fallback clock takes over so the
-captions still type.
+Every line is now rendered whole the moment its scene opens, so a caption's box
+is the size it will stay. What draws the eye instead is the words:
+
+* **`.key`** - the lesson's own vocabulary, given a highlighter swipe and left
+  marked for the whole scene: *zero, above, below, positive, negative, more,
+  less, reference*, and any bare number. Marked once when the caption is built.
+  It covers exactly the five teaching scenes (5, 6, 7, 8, 10) and leaves the
+  seven narrative ones untouched, which is what keeps it reading as emphasis
+  rather than decoration.
+* **`.now`** - whichever word the voice is on, straight from the same `.srt`
+  word timings that used to drive the typewriter. A reader following along gets
+  a place-marker; a reader who is not is not chased across the line.
+
+Neither changes an element's size, so a caption can no longer re-wrap: verified
+by walking the mark through every word of every line at six widths from 390 to
+2560, with zero height changes.
+
+If a voiceover file fails to load, the same fallback clock still drives the
+highlight, so the words still light in time.
 
 ## Text style
 

@@ -6,6 +6,8 @@
 <meta name="color-scheme" content="light">
 <title>Integers — The Village Water Tank</title>
 <link rel="stylesheet" href="style.css">
+<!-- parallel "control room" skin, press P; additive, scoped to body.cr -->
+<link rel="stylesheet" href="controlroom.css">
 </head>
 <body>
 
@@ -399,7 +401,21 @@
     </svg>
 
     <!-- ── start gate ───────────────────────────────────────────────────── -->
-    <div id="gate">
+    <!-- ── turn the phone ───────────────────────────────────────────────────
+     The stage is a fixed 1920x1080 scaled to fit. On a 390x844 phone held
+     upright that lands at 390x219 - 74% of the screen empty, the marker an
+     18x16px drag target and the gauge labels 7.7px. The whole lesson is a
+     drag, so that is not usable. Landscape on the same phone gives 693x390.
+     Rather than reflow the tank, ask for the quarter turn. -->
+<div id="rotate" class="rotate" hidden>
+  <div class="rotate-card">
+    <div class="rotate-icon"></div>
+    <h2>Turn your phone sideways</h2>
+    <p>The water tank needs a wider screen.</p>
+  </div>
+</div>
+
+<div id="gate">
       <div class="gateCard">
         <h1>The Village Water Tank</h1>
         <p>Read the water level above and below&nbsp;0 — then work it out.</p>
@@ -418,5 +434,6 @@
 <script src="game.js"></script>
 <!-- build tool: delete this line and editor.js for release -->
 <script src="editor.js"></script>
+<script src="controlroom.js"></script>
 </body>
 </html>

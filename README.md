@@ -20,6 +20,14 @@ back up after `AUTO_RESUME_MS` (2.6 s) from wherever they stopped. The space
 bar is a real pause, held until pressed again, and the game overlay holds it
 too so the story cannot scroll on behind it.
 
+**The QA screen-jumper stays on.** The game's `QA · jump` tab lists all 20
+screens and drops you straight into any of them - that is how the game gets
+worked on, so it is visible rather than hidden behind a shortcut. The layout
+editor's tab is hidden (a child could open that one and start dragging the tank
+around); `E` still opens it. Both switches are the one CSS rule at the bottom of
+`game/style.css`: add `#qaTab` to it for a release build, or take `#edTab` out
+to bring the editor's tab back.
+
 **A refresh starts the story over.** This page is driven by scroll position, so
 the browser's own scroll restoration would drop the reader back mid-story -
 measured: reloading at scene 7 came back at scene 7, with the gate showing over
@@ -50,6 +58,46 @@ game/           the game, complete and self-contained
   README.md     the game's own design record
 docs/storybook.md   the storybook's own README
 ```
+
+## Flowing water
+
+The scenes are still paintings; `water.js` makes the water in them move. It does
+to the painting what the game already does to its tank: slices the water into
+thin horizontal bands on a canvas and slides each one sideways on a sine that is
+phase-delayed down the stack, so a refraction wave travels downstream *through*
+the painted water instead of a veil drifting over it. Amplitude and speed both
+grow with depth, which is what reads as perspective. Over it go hard-edged
+crescents and sparkles - the rule the game's river arrived at holds here too:
+**on water, nothing soft may drift**, because anything blurred that moves reads
+as smoke.
+
+The canvas samples the scene image with the same mapping `.layer` paints it
+with - `object-fit:cover` plus whatever scale the stylesheet applies - read off
+the element at run time so the two cannot drift apart.
+
+**Which pixels are water is drawn by hand**, because no code can tell river from
+sky in a painting, and the rivers run *behind* things: in scene 5 the water
+passes behind the tank and behind Pari, so one rectangle over it would wobble
+her dress. Press **E** for Studio, then **Water**, then **+ region**. Each scene
+holds a list, so strips can dodge whatever stands in front:
+
+```json
+"water": [ { "l": 32, "t": 56.5, "w": 8.5, "h": 7 },
+           { "l": 85, "t": 56.5, "w": 15,  "h": 12 } ]
+```
+
+Drag to move, the blue grip resizes, the red × removes. Regions ride along in
+**Copy all JSON** and come back through **Apply pasted JSON**, the same as every
+other placement. Scene 5 ships with two as a worked example; every other scene
+starts empty.
+
+## Studio holds the story still
+
+The story plays itself now, so Studio takes an explicit hold on it. Without
+that, `freeze()` only stopped the run in flight and the first pointerdown on a
+caption handed autoplay back 2.6 s later - the scene scrolled out from under the
+box being dragged. The panel's **Held / Playing** button releases it if you want
+to watch, and re-takes it.
 
 ## Why the game is in an iframe
 

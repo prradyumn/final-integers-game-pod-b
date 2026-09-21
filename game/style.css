@@ -509,7 +509,15 @@ html,body{
   /* two shadows: a tight one to cut it off the water, a soft one for weight */
   filter:drop-shadow(0 2px 2px rgba(10,40,70,.5)) drop-shadow(0 9px 12px rgba(0,0,0,.35));
   transform-origin:82% 7.5%;
-  transform:scaleX(-1);
+  /* scaleX(-1) mirrors it so the finger points at the marker; the .95 takes 5%
+     off the hand. Both happen about transform-origin, which is the fingertip,
+     so shrinking it does not walk the finger off the marker.
+
+     It multiplies with the `scale` PROPERTY that ghostPress animates (1.3 -> 1
+     -> 1.22) rather than fighting it - `scale` is its own property and is
+     applied before `transform` - so every frame of the press comes out 5%
+     smaller and the animation keeps its shape. */
+  transform:scaleX(-1) scale(.95);
 }
 #ghost.run{ animation:ghostDrag 3.2s cubic-bezier(.4,0,.2,1) infinite; }
 #ghost.run #ghostHand{ animation:ghostPress 3.2s cubic-bezier(.4,0,.2,1) infinite; }
@@ -530,6 +538,18 @@ html,body{
 @media (prefers-reduced-motion: reduce){ #ghost{ display:none; } }
 #marker:active{ cursor:grabbing; }
 #marker img{ width:100%; height:100%; display:block; }
+/* The marker is the only thing in the game you touch, and at small stage
+   scales it was a very small target. This pseudo-element widens what CATCHES
+   the finger by 10% in each direction - inset:-5% pushes every edge out by 5%
+   of the marker's own box - while the artwork above stays exactly the size it
+   was. It is transparent and has no shadow of its own, so nothing about the
+   marker looks different. */
+#marker::before{
+  content:'';
+  position:absolute;
+  inset:-5%;
+  border-radius:12px;
+}
 #marker.nudge{ animation:mkNudge .85s ease-in-out 2; }
 @keyframes mkNudge{ 0%,100%{transform:translateX(0)} 50%{transform:translateX(-16px)} }
 #tank.locked #marker{ cursor:default; }
@@ -979,3 +999,78 @@ body.held #stage::before{
 #edHold.on:hover{ background:#d18d20; }
 #edPrev,#edNext,#edReplay{ width:34px; flex:0 0 auto; }
 /* ═══════════ end EDITOR ═══════════════════════════════════════════════ */
+
+/* ── build tools ──────────────────────────────────────────────────────
+   The QA screen-jumper stays ON: jumping straight to any of the 20 screens is
+   how this thing gets worked on, and hunting for a keyboard shortcut every
+   time is not a fair trade for hiding one tab.
+
+   The layout editor's tab is still hidden - it is the one a child could open
+   and start dragging the tank around in, and E still opens it when it is
+   wanted. To hide the QA tab too for a release build, add #qaTab to the
+   selector below; to bring the editor's tab back, take #edTab out of it. */
+#edTab{ display:none !important; }
+
+/* ── the commit ring ──────────────────────────────────────────────────
+   A marker screen has no button: coming to rest on a level is the answer,
+   after COMMIT_MS. That used to be a silent timer. This draws it - a ring
+   closing around the marker over exactly that window, so a learner can see
+   the answer being taken and stop it by touching the marker again. The
+   duration comes from --commitMs, set by armCommit(), so the two can never
+   drift apart. */
+#marker.committing::after{
+  content:'';
+  position:absolute; inset:-14%;
+  border-radius:50%;
+  background:conic-gradient(from -90deg, #ffd15c var(--sweep,0deg), rgba(255,255,255,.16) 0deg);
+  -webkit-mask:radial-gradient(circle, transparent 58%, #000 60%);
+          mask:radial-gradient(circle, transparent 58%, #000 60%);
+  animation:commitSweep var(--commitMs,900ms) linear forwards;
+  pointer-events:none;
+  filter:drop-shadow(0 0 6px rgba(255,190,60,.7));
+}
+@property --sweep{ syntax:'<angle>'; inherits:false; initial-value:0deg; }
+@keyframes commitSweep{ from{ --sweep:0deg } to{ --sweep:360deg } }
+
+/* no @property support: fall back to a ring that simply pulses for the same
+   window, which still says "something is about to happen" */
+@supports not (background: conic-gradient(from -90deg, red var(--x,0deg), blue 0deg)){
+  #marker.committing::after{
+    background:none;
+    box-shadow:0 0 0 3px rgba(255,209,92,.9);
+    animation:commitPulse var(--commitMs,900ms) ease-out forwards;
+  }
+  @keyframes commitPulse{ from{ opacity:0; transform:scale(.8) } to{ opacity:1; transform:scale(1.06) } }
+}
+@media (prefers-reduced-motion: reduce){
+  #marker.committing::after{ animation-duration:var(--commitMs,900ms); }
+}
+
+/* ── turn the phone ───────────────────────────────────────────────────
+   Shown only where it is actually needed: a portrait window narrow enough
+   that the scaled stage becomes unusable. A tablet in portrait (820 wide,
+   stage 820x461) is fine and never sees this. */
+#rotate{
+  position:fixed; inset:0; z-index:200;
+  display:none; place-items:center; padding:8vw;
+  background:radial-gradient(circle at 50% 35%, rgba(23,120,160,.4), transparent 55%), #061b28;
+  color:#eaf7fd; text-align:center;
+  font-family:var(--font, system-ui, sans-serif);
+}
+#rotate[hidden]{ display:none; }
+@media (orientation:portrait) and (max-width:760px){
+  #rotate:not([hidden]){ display:grid; }
+}
+.rotate-card{ max-width:22rem; }
+.rotate-card h2{ margin:0 0 .5rem; font-size:1.35rem; letter-spacing:-.02em; }
+.rotate-card p{ margin:0; color:#a9cbd9; font-size:.95rem; }
+.rotate-icon{
+  width:3.6rem; height:5.8rem; margin:0 auto 1.4rem;
+  border:3px solid #7fe0ff; border-radius:.7rem;
+  animation:rotateHint 2.2s ease-in-out infinite;
+}
+@keyframes rotateHint{
+  0%,30%   { transform:rotate(0deg) }
+  55%,100% { transform:rotate(-90deg) }
+}
+@media (prefers-reduced-motion: reduce){ .rotate-icon{ animation:none; transform:rotate(-90deg) } }

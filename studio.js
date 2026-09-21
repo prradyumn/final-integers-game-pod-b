@@ -33,7 +33,7 @@
   const panel = document.createElement("aside");
   panel.id = "studio";
   panel.innerHTML = `
-    <h3>Studio</h3>
+    <h3>Studio<button id="stMin" title="Minimise (M)">&#8211;</button></h3>
     <p class="muted">Drag the box, blue grip resizes. The tail is part of the
       bubble art - "Flip tail" swaps the side it comes out of.
       Arrow keys nudge (Shift = 10x).</p>
@@ -43,6 +43,7 @@
     <div id="stFields"></div>
     <div class="seg">
       <button id="stFlipTail">Flip tail</button>
+      <button id="stHold">&#9208; Held</button>
     </div>
     <div class="seg">
       <button id="stAlign">Align: left</button>
@@ -172,6 +173,39 @@
   }));
   grip.addEventListener("pointerdown", (e) => down(e, "size"));
 
+  /* ----------------------------------------------------------- minimise
+     Collapses to just the title bar so the panel stops covering the frame
+     while a caption is being dragged across it. The state is remembered,
+     because anyone working on the far side of the frame wants it out of the
+     way every time, not once. */
+  const MIN_KEY = "vwt-studio-min";
+  let mini = false;
+  function syncMin() {
+    panel.classList.toggle("mini", mini);
+    const b = panel.querySelector("#stMin");
+    if (b) { b.innerHTML = mini ? "&#43;" : "&#8211;"; b.title = mini ? "Expand (M)" : "Minimise (M)"; }
+    try { localStorage.setItem(MIN_KEY, mini ? "1" : "0"); } catch (_) {}
+  }
+  panel.querySelector("#stMin").onclick = (e) => { e.stopPropagation(); mini = !mini; syncMin(); };
+  /* clicking the title bar while collapsed opens it again */
+  panel.querySelector("h3").addEventListener("click", () => { if (mini) { mini = false; syncMin(); } });
+  try { mini = localStorage.getItem(MIN_KEY) === "1"; } catch (_) {}
+  syncMin();
+
+  /* ------------------------------------------------- hold the story still */
+  let held = false;
+  function syncHold() {
+    const b = panel.querySelector("#stHold");
+    if (b) b.textContent = held ? "\u23F8 Held" : "\u25B6 Playing";
+    if (b) b.classList.toggle("primary", held);
+  }
+  panel.querySelector("#stHold").onclick = () => {
+    held = !held;
+    if (book.holdAuto) book.holdAuto(held);
+    if (held) book.freeze();
+    syncHold();
+  };
+
   /* --------------------------------------------------------------- buttons */
   const step = (d) => {
     const i = Math.max(0, Math.min(STORY.length - 1, book.scene() + d));
@@ -226,6 +260,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.target.matches("input,textarea")) return;
     if (e.key === "e" || e.key === "E") { toggle(); return; }
+    if (on && (e.key === "m" || e.key === "M")) { mini = !mini; syncMin(); return; }
     if (!on) return;
     const i = book.scene();
     const L = LAYOUT[i];
@@ -251,9 +286,18 @@
     document.body.classList.toggle("studio", on);
     if (on) {
       book.freeze();
+      /* The story plays itself now, and freeze() only stops the current run -
+         any pointerdown or wheel while editing would hand it back 2.6s later
+         and scroll the scene out from under the box being dragged. holdAuto
+         keeps it stopped for as long as Studio is open. */
+      if (book.holdAuto) book.holdAuto(true);
+      held = true; syncHold();
       const i = book.scene();
       book.revealAll(i);
       refresh();
+    } else {
+      if (book.holdAuto) book.holdAuto(false);
+      held = false;
     }
     const btn = document.getElementById("studioBtn");
     if (btn) btn.classList.toggle("is-on", on);

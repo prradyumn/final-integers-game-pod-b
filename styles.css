@@ -135,114 +135,48 @@ body{
 /* the inter-word span must keep its width when hidden but still allow a wrap */
 .sp{white-space:pre-wrap}
 
-/* typewriter: every glyph is present from the start so the text never re-wraps */
-/* ------------------------------------------------------------------ studio */
-/* the scroll track normally sits above the fixed stage, so lift the stage
-   while editing or the drags never reach a caption */
-body.studio .stage{z-index:30}
-body.studio .scroller{pointer-events:none}
-body.studio .bubble,
-body.studio .narration{pointer-events:auto;cursor:grab;outline:1px dashed rgba(127,224,255,.55);outline-offset:3px}
-body.studio .bubble.drag,body.studio .narration.drag{cursor:grabbing}
-body.studio #overlay{pointer-events:none}
-.grip{
-  position:absolute;
-  width:14px;height:14px;
-  right:-8px;bottom:-8px;
-  border-radius:50%;
-  background:#17c2ec;
-  border:2px solid #fff;
-  box-shadow:0 2px 6px rgba(0,0,0,.4);
-  cursor:nwse-resize;
-  display:none;
-  pointer-events:auto;
-  z-index:5;
-}
-body.studio .grip{display:block}
+/* ── emphasis, not reveal ─────────────────────────────────────────────
+   The typewriter is gone. It was the thing that drew the eye through a line,
+   but it also meant a box at full size holding two words, and a caret that
+   had to be kept out of the line-breaking. The line is simply there now, and
+   the emphasis comes from the words that matter.
 
-#studio{
-  position:fixed;
-  top:12px;right:12px;
-  z-index:60;
-  width:280px;
-  max-height:calc(100vh - 24px);
-  overflow:auto;
-  padding:12px 13px 14px;
-  border-radius:14px;
-  background:rgba(6,24,34,.93);
-  border:1px solid rgba(160,220,244,.26);
-  backdrop-filter:blur(20px);
-  font-size:12px;
-  color:#dff4fd;
-  box-shadow:0 14px 44px rgba(0,0,0,.5);
-  display:none;
-}
-body.studio #studio{display:block}
-#studio h3{margin:0 0 2px;font-size:13px;letter-spacing:-.01em}
-#studio .muted{color:#7fa4b4;font-size:11px;margin:0 0 10px}
-#studio .row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-#studio .row label{flex:0 0 74px;color:#8fb6c6}
-#studio input[type=number]{
-  flex:1 1 auto;min-width:0;
-  padding:4px 6px;border-radius:6px;
-  border:1px solid rgba(160,220,244,.24);
-  background:rgba(255,255,255,.06);color:#eafaff;font:inherit;
-}
-#studio .seg{display:flex;gap:5px;margin:8px 0}
-#studio button{
-  flex:1 1 auto;
-  padding:6px 8px;border:0;border-radius:7px;
-  background:rgba(127,224,255,.16);color:#dff4fd;
-  font:inherit;font-weight:600;cursor:pointer;
-}
-#studio button:hover{background:rgba(127,224,255,.3)}
-#studio button.primary{background:linear-gradient(145deg,#7fe0ff,#17c2ec);color:#04202c}
-#studio .nav{display:flex;align-items:center;gap:6px;margin-bottom:9px}
-#studio .nav b{flex:1 1 auto;text-align:center;font-size:12px}
-#studio textarea{
-  width:100%;height:92px;margin-top:8px;
-  padding:7px;border-radius:8px;
-  border:1px solid rgba(160,220,244,.24);
-  background:rgba(0,0,0,.34);color:#bfe6f5;
-  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;
-  resize:vertical;
-}
-#studio .ok{color:#8ff0c0}
+   `.key` is the lesson's own vocabulary - zero, above, below, positive,
+   negative, more, less, reference and any bare number. Marked once when the
+   caption is built and left marked, so scene 6 reads as "above zero ... more"
+   at a glance.
 
-.ch{visibility:hidden}
-.ch.on{visibility:visible}
-/* THE CARET TAKES NO WIDTH.
-   app.js walks this element through the text, re-inserting it before whichever
-   letter is next. While it was a .075em inline-block with a .04em margin, that
-   moving ~0.115em was enough to push the last word of a line over the edge and
-   back again as it travelled, so the caption re-wrapped, changed height, and
-   the box visibly jumped up and down for the whole line. Measured: 10 of the 12
-   scenes did it, the text block taking up to 6 different heights in one scene.
+   `.now` is whichever word the voice is on, straight from the .srt timings.
+   It is deliberately light: a reader following along gets a place-marker,
+   and a reader who is not is not chased across the line. Nothing here changes
+   an element's SIZE, so the caption can never re-wrap mid-line. */
+.wd{ white-space:nowrap; position:relative; }
 
-   The element is now zero-width and the visible bar is drawn by an absolutely
-   positioned ::after, which is out of flow and cannot influence line breaking.
-   The bar still sits exactly where the next letter will appear. */
-.caret{
-  position:relative;
-  display:inline-block;
-  width:0;
-  height:.92em;
-  margin-left:0;
-  vertical-align:-.13em;
-  opacity:0;
+.wd.key{
+  font-weight:700;
+  /* a highlighter swipe sitting behind the lower two-thirds of the word,
+     drawn with a gradient so it never adds a box or changes the metrics */
+  background-image:linear-gradient(to top,
+    rgba(255,205,70,.55) 0, rgba(255,205,70,.55) 62%, rgba(255,205,70,0) 62%);
+  border-radius:.12em;
+  padding:0 .08em;
+  margin:0 -.02em;
 }
-.caret::after{
-  content:'';
-  position:absolute;
-  left:.04em;
-  top:0;
-  width:.075em;
-  height:100%;
-  background:currentColor;
-  border-radius:.04em;
+/* the narrator band is light text on dark, so the swipe is inverted there */
+.narration .wd.key{
+  background-image:linear-gradient(to top,
+    rgba(127,224,255,.34) 0, rgba(127,224,255,.34) 62%, rgba(127,224,255,0) 62%);
+  color:#eafaff;
 }
-.is-typing .caret{opacity:.75;animation:blink .9s steps(1,end) infinite}
-@keyframes blink{50%{opacity:0}}
+
+.wd.now{ color:#0d63b8; }
+.narration .wd.now{ color:#bfeaff; }
+.wd.key.now{ color:#7a3d00; }
+.narration .wd.key.now{ color:#ffffff; }
+
+@media (prefers-reduced-motion: reduce){
+  .wd.now{ color:inherit; }
+}
 
 /* ------------------------------------------------- narrator caption band */
 .narration{
@@ -283,7 +217,12 @@ body.studio #studio{display:block}
 .outro-eyebrow{margin:0 0 .4rem;color:#7fe0ff;font-size:.8rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 .outro h2{margin:0 0 .7rem;font-size:clamp(1.5rem,3.6vw,2.4rem);line-height:1.15;letter-spacing:-.02em}
 .outro p{margin:0 0 1.5rem;color:#a9cbd9;line-height:1.6}
-.outro button,#beginBtn{
+/* #beginBtn is no longer a text button - it is the painted start badge on the
+   cover, and it styles itself (.start-btn). It used to be listed here, and an
+   ID selector outranks that class, so this cyan pill background and its cyan
+   box-shadow were still being painted BEHIND the artwork: the light blue disc
+   showing around the badge. Only the outro's "Read it again" uses this now. */
+.outro button{
   border:0;border-radius:999px;
   padding:.85em 1.7em;
   background:linear-gradient(145deg,#7fe0ff,#17c2ec);
@@ -292,7 +231,7 @@ body.studio #studio{display:block}
   box-shadow:0 .5rem 1.6rem rgba(23,194,236,.3);
   transition:transform .18s ease,box-shadow .18s ease;
 }
-.outro button:hover,#beginBtn:hover{transform:translateY(-2px);box-shadow:0 .7rem 2rem rgba(23,194,236,.42)}
+.outro button:hover{transform:translateY(-2px);box-shadow:0 .7rem 2rem rgba(23,194,236,.42)}
 
 /* ------------------------------------------------------------------ hud */
 .hud{
@@ -342,16 +281,8 @@ body.studio #studio{display:block}
   transition:opacity .5s ease,visibility .5s;
 }
 .gate.is-gone{opacity:0;visibility:hidden}
-.gate-card{max-width:30rem;text-align:center}
-.gate-art{
-  width:6.4rem;height:6.4rem;margin:0 auto 1.3rem;
-  border-radius:1.6rem;
-  background:url('assets/scenes/01@sm.webp') center/cover;
-  box-shadow:0 1rem 2.6rem rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.16);
-}
-.gate-eyebrow{margin:0 0 .35rem;color:#7fe0ff;font-size:.74rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
-.gate-card h2{margin:0 0 .7rem;font-size:clamp(1.6rem,5vw,2.3rem);line-height:1.1;letter-spacing:-.025em}
-.gate-sub{margin:0 0 1.6rem;color:#a9cbd9;line-height:1.55}
+/* .gate-card / .gate-art / .gate-eyebrow / .gate-sub went with the cover:
+   the artwork carries the title, so there is no card describing it. */
 .gate-hint{margin:1.1rem 0 0;color:#6e93a3;font-size:.78rem}
 
 /* ------------------------------------------------------------ responsive */
@@ -372,7 +303,6 @@ body.studio #studio{display:block}
 
 @media (prefers-reduced-motion:reduce){
   .bubble,.narration{transition:opacity .01ms}
-  .caret{animation:none}
   .layer{transform:none}
 }
 
@@ -457,4 +387,155 @@ body.game-open{overflow:hidden}
 
 @media (prefers-reduced-motion: reduce){
   .game-loading span{animation-duration:3s}
+}
+
+/* ── build tools are not for learners ─────────────────────────────────
+   Studio is a layout editor. It stays fully available - the E key and the
+   #studio hash both still open it, which is how studio.js already works -
+   but the button beside Game and sound is gone, because a child tapping it
+   lands in a drag-and-drop editor with no way of knowing what it is. */
+#studioBtn{ display:none !important; }
+
+/* ── the way out of the game ──────────────────────────────────────────
+   Deliberately quiet: it sits clear of the game's own stage, which is
+   centred, and it must never compete with the tank. It is the only thing
+   that tells a reader Esc is not their only option. */
+.game-back{
+  position:absolute; z-index:5;
+  top:max(.9rem,env(safe-area-inset-top)); left:.9rem;
+  display:inline-flex; align-items:center; gap:.45rem;
+  min-height:2.3rem; padding:0 .95rem 0 .75rem;
+  border:1px solid rgba(180,228,247,.26); border-radius:999px;
+  background:rgba(4,20,30,.72); backdrop-filter:blur(14px) saturate(140%);
+  color:#dff4ff; font:600 .82rem/1 'Poppins',system-ui,sans-serif;
+  cursor:pointer; opacity:.55;
+  transition:opacity .2s ease, background .2s ease, transform .2s ease;
+}
+.game-back:hover, .game-back:focus-visible{ opacity:1; background:rgba(9,38,54,.9); }
+.game-back-arrow{
+  width:.5rem; height:.5rem; border-left:2px solid currentColor;
+  border-bottom:2px solid currentColor; transform:rotate(45deg); margin-left:.15rem;
+}
+@media (max-width:520px){ .game-back span:last-child{ display:none; } .game-back{ padding:0 .7rem; } }
+
+
+/* ── Studio, minimised ────────────────────────────────────────────────
+   Everything but the title bar collapses, so the panel stops sitting over
+   the part of the frame a caption is being dragged across. */
+#studio h3{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#studio h3 #stMin{
+  flex:0 0 auto; width:20px; height:20px; padding:0;
+  border-radius:6px; line-height:18px; font-size:13px;
+  background:rgba(255,255,255,.1); color:#dff4fd; border:0; cursor:pointer;
+}
+#studio h3 #stMin:hover{ background:rgba(127,224,255,.3); }
+#studio.mini{
+  width:auto; min-width:132px;
+  padding:8px 10px; overflow:hidden;
+}
+#studio.mini > *:not(h3){ display:none !important; }
+#studio.mini h3{ margin:0; cursor:pointer; }
+
+/* ── the title screen must not scroll the story underneath it ──────────
+   The stage is fixed and the gate covers it, so scrolling behind it was
+   invisible - but it moved the scene on, and "Begin the story" then started
+   wherever the scroll had reached. Measured: a quarter-scroll on the gate
+   started the story at scene 5. */
+html.gated, html.gated body{ overflow:hidden; height:100%; }
+
+/* ── what the story is doing ─────────────────────────────────────────── */
+.hud-state{
+  font-size:.72rem; font-weight:600; letter-spacing:.02em;
+  color:#9fc6d6; min-width:3.6rem; text-align:center;
+}
+.hud-state::after{ content:"Paused"; }
+.hud.is-speaking .hud-state::after{ content:"Reading"; color:#bfeaff; }
+.hud.is-playing:not(.is-speaking) .hud-state::after{ content:"Playing"; }
+
+/* ── the cover ────────────────────────────────────────────────────────
+   The gate is now the title artwork. It is given the SAME box as the scenes
+   (--stage-w x --stage-h, set by fitStage) so pressing Begin does not move
+   the frame - the cover and scene 1 occupy identical space, and the handover
+   reads as a page turn rather than a jump. */
+.gate{ padding:0; }
+.gate-cover{
+  position:relative;
+  width:var(--stage-w);
+  height:var(--stage-h);
+  background:url('assets/scenes/cover.webp') center/cover no-repeat;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  overflow:hidden;
+}
+/* the art is busy at the edges and clear along the bottom, so the controls sit
+   there, over a scrim that only darkens what is behind the words */
+/* The button sits in the clear stretch of river across the bottom middle, so
+   the scrim only needs to be strong enough to carry the hint text under it. */
+.gate-actions{
+  width:100%;
+  padding:12% 6% max(1.1rem, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; align-items:center; gap:.35rem;
+  background:linear-gradient(to top,
+    rgba(3,14,21,.70) 0%, rgba(3,14,21,.34) 42%, rgba(3,14,21,0) 100%);
+  text-align:center;
+}
+.gate-actions .gate-hint{ margin:0; color:#bcd9e6; }
+.gate.is-gone .gate-cover{ transform:scale(1.02); transition:transform .5s ease; }
+
+@media (max-width:760px){
+  .gate-actions{ padding:20% 5% max(1rem, env(safe-area-inset-bottom)); }
+  .gate-actions .gate-hint{ font-size:.72rem; }
+}
+
+/* ── the start button ─────────────────────────────────────────────────
+   Painted artwork, so everything that makes it read as a control is motion
+   and light rather than a border: it breathes on its own so the eye finds
+   it, lifts and brightens under the cursor, and presses in on click. The
+   glow is a drop-shadow on the art itself, which follows the button's own
+   silhouette - a box-shadow would draw a rectangle around a round badge. */
+.start-btn{
+  appearance:none; border:0; padding:0;
+  background:none; box-shadow:none;
+  cursor:pointer; line-height:0;
+  border-radius:50%;
+  /* lifted 5% of the frame height off the bottom. --stage-h is the frame's own
+     height, so this is 5% of the picture rather than 5% of some other box -
+     a percentage margin would have resolved against the WIDTH. */
+  margin-bottom:calc(var(--stage-h) * 0.05);
+  transition:transform .18s cubic-bezier(.34,1.56,.64,1);
+}
+.start-btn-art{
+  display:block;
+  /* 39% larger than it first shipped (84/11/140): +10%, +15%, then +10% again.
+     The floor matters as much as the ceiling - a phone gets the 117px floor
+     rather than the full 195px, so the badge never dominates a small frame. */
+  width:clamp(117px, 15.3vw, 195px);
+  /* the art was re-cut once its painted ground-shadow was stripped */
+  aspect-ratio:381 / 371;
+  background:url('assets/ui/start-button.webp') center/contain no-repeat;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))
+         drop-shadow(0 0 0 rgba(126,247,150,0));
+  animation:startPulse 2.4s ease-in-out infinite;
+  transition:filter .2s ease;
+}
+@keyframes startPulse{
+  0%,100%{ transform:scale(1);    filter:drop-shadow(0 6px 14px rgba(0,0,0,.45)) drop-shadow(0 0 6px rgba(126,247,150,.28)); }
+  50%    { transform:scale(1.045); filter:drop-shadow(0 8px 18px rgba(0,0,0,.5))  drop-shadow(0 0 16px rgba(126,247,150,.6)); }
+}
+.start-btn:hover, .start-btn:focus-visible{ transform:translateY(-3px) scale(1.06); outline:none; }
+/* animation:none, not animation-play-state:paused - a paused animation still
+   applies whatever keyframe it stopped on, and a running animation's value
+   beats a plain declaration, so the hover glow below was being overridden by
+   the pulse it was meant to replace. */
+.start-btn:hover .start-btn-art, .start-btn:focus-visible .start-btn-art{
+  animation:none;
+  transform:scale(1.03);
+  filter:drop-shadow(0 10px 22px rgba(0,0,0,.5))
+         drop-shadow(0 0 22px rgba(146,255,170,.85));
+}
+.start-btn:active{ transform:translateY(1px) scale(.97); }
+@media (prefers-reduced-motion: reduce){
+  .start-btn-art{ animation:none;
+    filter:drop-shadow(0 6px 14px rgba(0,0,0,.45)) drop-shadow(0 0 10px rgba(126,247,150,.45)); }
 }
